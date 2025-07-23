@@ -11,9 +11,9 @@ mod error {
     impl fmt::Display for AppError {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             match self {
-                AppError::IoError(err) => write!(f, "IO Error: {}", err),
-                AppError::ParseError(msg) => write!(f, "Parse Error: {}", msg),
-                AppError::Other(msg) => write!(f, "Error: {}", msg),
+                AppError::IoError(err) => write!(f, "IO Error: {err}"),
+                AppError::ParseError(msg) => write!(f, "Parse Error: {msg}"),
+                AppError::Other(msg) => write!(f, "Error: {msg}"),
             }
         }
     }

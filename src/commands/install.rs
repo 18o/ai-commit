@@ -7,7 +7,6 @@ pub fn install_hook() -> Result<()> {
     let template_path = Path::new("templates/prepare-commit-msg");
 
     fs::copy(template_path, hook_path)?;
-    // fs::set_permissions(hook_path, fs::Permissions::from_mode(0o755))?;
 
     println!("Git hook installed successfully.");
     Ok(())
