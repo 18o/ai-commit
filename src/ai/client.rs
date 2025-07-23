@@ -1,7 +1,10 @@
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
-use crate::ai::{format_commit_prompt, SYSTEM_PROMPT};
+use crate::{
+    ai::{format_commit_prompt, SYSTEM_PROMPT},
+    config::AppConfig,
+};
 
 #[derive(Serialize, Debug)]
 pub struct Message {
@@ -32,31 +35,16 @@ impl Default for Thinking {
 #[derive(Deserialize)]
 struct ChatMessage {
     content: String,
-    role: String,
 }
 
 #[derive(Deserialize)]
 struct Choice {
-    finish_reason: String,
-    index: u32,
     message: ChatMessage,
-}
-
-#[derive(Deserialize, Debug)]
-struct Usage {
-    completion_tokens: u32,
-    prompt_tokens: u32,
-    total_tokens: u32,
 }
 
 #[derive(Deserialize)]
 struct ChatResponse {
     choices: Vec<Choice>,
-    created: u64,
-    id: String,
-    model: String,
-    object: String,
-    usage: Usage,
 }
 
 #[derive(Default)]
@@ -67,29 +55,29 @@ pub struct AiClient {
     model: String,
 }
 
-const API_KEY: &str = "";
-const MODEL: &str = "doubao-seed-1.6-250615";
-const DEFAULT_API_ENDPOINT: &str = "https://ark.cn-beijing.volces.com/api/v3/chat/completions";
-
 impl AiClient {
     pub fn new() -> Self {
+        let config = AppConfig::load().unwrap_or_default();
         let client = Client::new();
-        let api_key = std::env::var("AI_COMMIT_ARK_API_KEY").unwrap_or_else(|_| API_KEY.to_string());
-        let endpoint = std::env::var("AI_COMMIT_ARK_ENDPOINT").unwrap_or_else(|_| DEFAULT_API_ENDPOINT.to_string());
-        let model = std::env::var("AI_COMMIT_ARK_MODEL").unwrap_or_else(|_| MODEL.to_string());
 
-        AiClient { client, api_key, endpoint, model }
+        let api_key = AppConfig::get_api_key().unwrap_or_else(|e| {
+            eprintln!("Warning: {e}");
+            String::new()
+        });
+
+        AiClient { client, api_key, endpoint: config.api.endpoint, model: config.api.model }
     }
 
     pub async fn send_chat_request(&self, messages: Vec<Message>) -> Result<String, Box<dyn std::error::Error>> {
+        let config = AppConfig::load().unwrap_or_default();
+
         let request = ChatRequest {
             model: self.model.clone(),
             messages,
-            max_tokens: Some(1000),
-            temperature: Some(0.7),
+            max_tokens: config.api.max_tokens,
+            temperature: config.api.temperature,
             thinking: Thinking::default(),
         };
-
         let response = self
             .client
             .post(&self.endpoint)

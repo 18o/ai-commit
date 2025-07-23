@@ -1,44 +1,53 @@
-mod repository {
-    use std::process::Command;
+use anyhow::Result;
+use std::process::Command;
 
-    pub struct GitRepository {
-        path: String,
+pub fn execute_commit_with_cli(message: &str) -> Result<()> {
+    println!("🚀 Committing changes...");
+
+    let mut cmd = Command::new("git");
+    cmd.args(["commit", "-m", message]);
+
+    if is_gpg_signing_enabled()? {
+        println!("🔐 GPG signing is enabled, using git command for proper signing...");
     }
 
-    impl GitRepository {
-        pub fn new(path: &str) -> Self {
-            GitRepository {
-                path: path.to_string(),
-            }
-        }
+    let status = cmd.status()?;
 
-        pub fn get_commits(&self) -> Result<String, String> {
-            let output = Command::new("git")
-                .arg("log")
-                .arg("--oneline")
-                .current_dir(&self.path)
-                .output()
-                .map_err(|e| e.to_string())?;
+    if status.success() {
+        println!("✅ Commit successful!");
+        show_commit_info()?;
+    } else {
+        return Err(anyhow::anyhow!("Commit failed"));
+    }
 
-            if output.status.success() {
-                String::from_utf8(output.stdout).map_err(|e| e.to_string())
-            } else {
-                Err(String::from_utf8_lossy(&output.stderr).to_string())
-            }
-        }
+    Ok(())
+}
 
-        pub fn get_branches(&self) -> Result<String, String> {
-            let output = Command::new("git")
-                .arg("branch")
-                .current_dir(&self.path)
-                .output()
-                .map_err(|e| e.to_string())?;
+pub fn is_gpg_signing_enabled() -> Result<bool> {
+    let output = Command::new("git").args(["config", "--get", "commit.gpgsign"]).output()?;
 
-            if output.status.success() {
-                String::from_utf8(output.stdout).map_err(|e| e.to_string())
-            } else {
-                Err(String::from_utf8_lossy(&output.stderr).to_string())
-            }
+    if output.status.success() {
+        let value = String::from_utf8_lossy(&output.stdout);
+        Ok(value.trim() == "true")
+    } else {
+        let output = Command::new("git").args(["config", "--global", "--get", "commit.gpgsign"]).output()?;
+
+        if output.status.success() {
+            let value = String::from_utf8_lossy(&output.stdout);
+            Ok(value.trim() == "true")
+        } else {
+            Ok(false)
         }
     }
+}
+
+pub fn show_commit_info() -> Result<()> {
+    let output = Command::new("git").args(["log", "-1", "--oneline"]).output()?;
+
+    if output.status.success() {
+        let commit_info = String::from_utf8_lossy(&output.stdout);
+        println!("Latest commit: {}", commit_info.trim());
+    }
+
+    Ok(())
 }

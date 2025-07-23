@@ -1,10 +1,6 @@
+use ai_commit::commands::execute_command;
 use anyhow::Result;
 use clap::{Arg, Command};
-
-use crate::commands::execute_command;
-
-mod ai;
-mod commands;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -35,7 +31,6 @@ async fn main() -> Result<()> {
         )
         .get_matches();
 
-    // 简化匹配逻辑
     let command = match matches.subcommand() {
         Some(("install", _)) => "install",
         Some(("uninstall", _)) => "uninstall",

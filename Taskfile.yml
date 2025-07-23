@@ -1,0 +1,14 @@
+version: "3"
+
+vars:
+  GREETING: Hello, AI Commit!
+
+tasks:
+  default:
+    cmds:
+      - cargo build -r
+      - cp target/release/ai-commit ~/.bin/ai-commit
+  commit:
+    cmds:
+      - git add .
+      - ai-commit
