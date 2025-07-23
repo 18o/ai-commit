@@ -1,0 +1,10 @@
+#!/bin/bash
+
+# This script is executed after a commit is made.
+# It can be used to perform actions such as notifying a service, logging, or triggering other processes.
+
+# Example action: Notify a remote service about the new commit
+COMMIT_HASH=$(git rev-parse HEAD)
+echo "New commit made: $COMMIT_HASH"
+
+# You can add more actions here, such as calling an API or running additional scripts.

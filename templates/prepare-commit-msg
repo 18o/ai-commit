@@ -1,0 +1,20 @@
+#!/bin/sh
+# This script is used as a Git hook to prepare commit messages.
+# It can modify the commit message before it is finalized.
+
+# Check if a commit message file is provided
+if [ -z "$1" ]; then
+    echo "No commit message file provided."
+    exit 1
+fi
+
+COMMIT_MSG_FILE="$1"
+
+# Read the current commit message
+COMMIT_MSG=$(cat "$COMMIT_MSG_FILE")
+
+# Here you can add logic to modify the commit message using AI or other methods
+# For example, you might want to append a suggestion or format it in a specific way
+
+# Save the modified commit message back to the file
+echo "$COMMIT_MSG" > "$COMMIT_MSG_FILE"
