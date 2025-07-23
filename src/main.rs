@@ -46,6 +46,13 @@ async fn main() -> Result<()> {
                         .action(clap::ArgAction::SetTrue),
                 ),
         )
+        .subcommand(
+            Command::new("config")
+                .about("Manage configuration")
+                .subcommand(Command::new("show").about("Show current configuration"))
+                .subcommand(Command::new("init").about("Initialize default configuration"))
+                .subcommand(Command::new("edit-prompts").about("Show how to edit prompt templates")),
+        )
         .get_matches();
 
     let command = match matches.subcommand() {
@@ -53,7 +60,7 @@ async fn main() -> Result<()> {
         Some(("uninstall", _)) => "uninstall",
         Some(("amend", _)) => "amend",
         Some(("commit", _)) => "commit",
-        _ => "commit", // 默认执行commit
+        _ => "commit",
     };
 
     execute_command(command).await

@@ -3,11 +3,14 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 
+use crate::config::prompt::*;
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AppConfig {
     pub api: ApiConfig,
     pub commit: CommitConfig,
     pub hooks: HookConfig,
+    pub prompts: PromptConfig,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -34,6 +37,13 @@ pub struct HookConfig {
     pub hook_types: Vec<String>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PromptConfig {
+    pub system_prompt: String,
+    pub user_prompt_template: String,
+    pub simple_prompt_template: String,
+}
+
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
@@ -52,6 +62,11 @@ impl Default for AppConfig {
                 custom_ignore_patterns: vec![],
             },
             hooks: HookConfig { enabled: false, hook_types: vec!["prepare-commit-msg".to_string()] },
+            prompts: PromptConfig {
+                system_prompt: get_default_system_prompt(),
+                user_prompt_template: get_default_user_prompt_template(),
+                simple_prompt_template: get_default_simple_prompt_template(),
+            },
         }
     }
 }
@@ -83,7 +98,7 @@ impl AppConfig {
         Ok(())
     }
 
-    fn config_path() -> Result<PathBuf> {
+    pub fn config_path() -> Result<PathBuf> {
         let config_dir = dirs::config_dir().ok_or_else(|| anyhow::anyhow!("Could not find config directory"))?;
 
         Ok(config_dir.join("ai-commit").join("config.toml"))
