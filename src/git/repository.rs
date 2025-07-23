@@ -51,3 +51,25 @@ pub fn show_commit_info() -> Result<()> {
 
     Ok(())
 }
+
+pub fn execute_amend_with_cli(message: &str) -> Result<()> {
+    println!("🔄 Amending last commit...");
+
+    let mut cmd = Command::new("git");
+    cmd.args(["commit", "--amend", "-m", message]);
+
+    if is_gpg_signing_enabled()? {
+        println!("🔐 GPG signing is enabled, using git command for proper signing...");
+    }
+
+    let status = cmd.status()?;
+
+    if status.success() {
+        println!("✅ Commit amended successfully!");
+        show_commit_info()?;
+    } else {
+        return Err(anyhow::anyhow!("Amend failed"));
+    }
+
+    Ok(())
+}

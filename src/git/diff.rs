@@ -127,3 +127,40 @@ pub fn get_unstaged_diff_debug() -> Result<String> {
     println!("Debug: Total diff content length: {}", diff_content.len());
     Ok(diff_content)
 }
+
+pub fn get_amend_diff() -> Result<String> {
+    let repo = Repository::open_from_env().unwrap_or_else(|e| {
+        eprintln!("Failed to open git repository. Make sure you're in a git repository: {e}");
+        std::process::exit(1);
+    });
+
+    // fetch HEAD parent commit
+    let head_commit = repo.head()?.peel_to_commit()?;
+    let parent_tree = if head_commit.parent_count() > 0 {
+        head_commit.parent(0)?.tree()?
+    } else {
+        // if it's the first commit, compare with empty tree
+        let empty_tree_id = repo.treebuilder(None)?.write()?;
+        repo.find_tree(empty_tree_id)?
+    };
+
+    // fetch current working directory + staged changes
+    let mut diff_opts = DiffOptions::new();
+    diff_opts.context_lines(3);
+    diff_opts.include_untracked(false);
+
+    // compare parent commit with current index + workdir
+    let diff = repo.diff_tree_to_workdir_with_index(Some(&parent_tree), Some(&mut diff_opts))?;
+
+    format_diff(diff)
+}
+
+pub fn get_last_commit_message() -> Result<String> {
+    let repo = Repository::open_from_env().unwrap_or_else(|e| {
+        eprintln!("Failed to open git repository. Make sure you're in a git repository: {e}");
+        std::process::exit(1);
+    });
+
+    let head_commit = repo.head()?.peel_to_commit()?;
+    Ok(head_commit.message().unwrap_or("").to_string())
+}

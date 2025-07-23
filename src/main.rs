@@ -7,7 +7,7 @@ async fn main() -> Result<()> {
     let matches = Command::new("ai-commit")
         .version("1.0.0")
         .about("AI-assisted Git commit message generator (defaults to 'commit' if no subcommand)")
-        .author("Your Name")
+        .author("John")
         .subcommand_required(false)
         .arg_required_else_help(false)
         .subcommand(Command::new("install").about("Install git hooks for AI commit assistance"))
@@ -29,11 +29,29 @@ async fn main() -> Result<()> {
                         .action(clap::ArgAction::SetTrue),
                 ),
         )
+        .subcommand(
+            Command::new("amend")
+                .about("Amend the last commit with staged changes using AI-generated message")
+                .arg(
+                    Arg::new("context-limit")
+                        .long("context-limit")
+                        .value_name("CHARS")
+                        .help("Maximum characters to send to AI (default: 200000)")
+                        .value_parser(clap::value_parser!(usize)),
+                )
+                .arg(
+                    Arg::new("dry-run")
+                        .long("dry-run")
+                        .help("Show generated message without amending")
+                        .action(clap::ArgAction::SetTrue),
+                ),
+        )
         .get_matches();
 
     let command = match matches.subcommand() {
         Some(("install", _)) => "install",
         Some(("uninstall", _)) => "uninstall",
+        Some(("amend", _)) => "amend",
         Some(("commit", _)) => "commit",
         _ => "commit", // 默认执行commit
     };

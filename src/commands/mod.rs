@@ -1,4 +1,5 @@
 use anyhow::Result;
+pub mod amend;
 pub mod commit;
 pub mod install;
 pub mod uninstall;
@@ -8,6 +9,7 @@ pub async fn execute_command(command: &str) -> Result<()> {
         "install" => install::install_hook(),
         "uninstall" => uninstall::uninstall_hook(),
         "commit" => commit::handle_commit().await,
+        "amend" => amend::handle_amend().await,
         _ => Err(anyhow::anyhow!("Unknown command: {}", command)),
     }
 }
