@@ -4,7 +4,7 @@ vars:
   GREETING: Hello, AI Commit!
 
 tasks:
-  default:
+  build:
     cmds:
       - cargo build -r
       - cp target/release/ai-commit ~/.bin/ai-commit

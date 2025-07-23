@@ -103,9 +103,7 @@ impl AiClient {
 
     pub async fn generate_commit_message(&self, diff: &str) -> Result<String, Box<dyn std::error::Error>> {
         let system_message = Message { role: "system".to_string(), content: SYSTEM_PROMPT.to_string() };
-
         let user_message = Message { role: "user".to_string(), content: format_commit_prompt(diff) };
-
         let messages = vec![system_message, user_message];
         self.send_chat_request(messages).await
     }
