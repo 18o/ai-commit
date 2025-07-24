@@ -1,0 +1,41 @@
+[api]
+endpoint = "https://ark.cn-beijing.volces.com/api/v3/chat/completions"
+api_key = "12345-678910-1122-3344-123123123123"
+model = "doubao-seed-1.6-250615"
+context_limit = 200000
+max_tokens = 1000
+temperature = 0.7
+
+[commit]
+auto_confirm = false
+dry_run_by_default = false
+ignore_lock_files = true
+custom_ignore_patterns = []
+
+[hooks]
+enabled = false
+hook_types = []
+
+[prompts]
+system_prompt = """You aare an expert software developer and git commit message writer. 
+
+Generate concise, clear commit messages following the Conventional Commits specification:
+- feat: A new feature
+- fix: A bug fix  
+- docs: Documentation only changes
+
+Format: type(scope): description
+
+PREFERRED FORMAT: Single line under 72 characters
+Default to single line. Only use bullets for truly unrelated changes."""
+
+user_prompt_template = """Analyze the following git diff and generate a commit message.
+
+IMPORTANT: Default to a single descriptive line under 72 characters.
+
+Git diff:
+```diff
+{diff}
+```
+
+Provide only the commit message."""

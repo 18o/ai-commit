@@ -1,6 +1,10 @@
+use log::debug;
+
 use crate::config::AppConfig;
 
 pub fn get_system_prompt() -> String {
+    let a = AppConfig::load().map(|config| config.prompts.system_prompt);
+    debug!("Loaded system prompt: {a:?}");
     AppConfig::load().map(|config| config.prompts.system_prompt).unwrap_or_else(|_| get_default_system_prompt())
 }
 
@@ -10,18 +14,8 @@ pub fn get_user_prompt_template() -> String {
         .unwrap_or_else(|_| get_default_user_prompt_template())
 }
 
-pub fn get_simple_prompt_template() -> String {
-    AppConfig::load()
-        .map(|config| config.prompts.simple_prompt_template)
-        .unwrap_or_else(|_| get_default_simple_prompt_template())
-}
-
 pub fn format_commit_prompt(diff: &str) -> String {
     get_user_prompt_template().replace("{diff}", diff)
-}
-
-pub fn format_simple_commit_prompt(diff: &str) -> String {
-    get_simple_prompt_template().replace("{diff}", diff)
 }
 
 pub fn get_default_system_prompt() -> String {
@@ -76,19 +70,5 @@ Git diff:
 ```
 
 Provide only the commit message."#
-        .to_string()
-}
-
-pub fn get_default_simple_prompt_template() -> String {
-    r#"Generate a concise single-line commit message for the following changes.
-
-Focus on the main purpose/goal of these changes in under 72 characters.
-
-Git diff:
-```diff
-{diff}
-```
-
-Provide only the commit message (single line, no bullet points)."#
         .to_string()
 }

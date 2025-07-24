@@ -27,6 +27,5 @@ pub fn edit_prompts() -> Result<()> {
     println!("\nYou can customize the following prompt sections:");
     println!("- [prompts.system_prompt]: The system prompt that defines AI behavior");
     println!("- [prompts.user_prompt_template]: Template for analyzing diffs (use {{diff}} placeholder)");
-    println!("- [prompts.simple_prompt_template]: Template for simple single-line messages");
     Ok(())
 }

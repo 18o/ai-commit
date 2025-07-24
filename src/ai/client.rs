@@ -1,9 +1,10 @@
+use log::debug;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
-use crate::config::{
-    prompt::{format_simple_commit_prompt, get_system_prompt},
-    AppConfig,
+use crate::{
+    ai::format_commit_prompt,
+    config::{prompt::get_system_prompt, AppConfig},
 };
 
 #[derive(Serialize, Debug)]
@@ -50,29 +51,21 @@ struct ChatResponse {
 #[derive(Default)]
 pub struct AiClient {
     client: Client,
-    api_key: String,
-    endpoint: String,
-    model: String,
+    config: AppConfig,
 }
 
 impl AiClient {
     pub fn new() -> Self {
         let config = AppConfig::load().unwrap_or_default();
         let client = Client::new();
-
-        let api_key = AppConfig::get_api_key().unwrap_or_else(|e| {
-            eprintln!("Warning: {e}");
-            String::new()
-        });
-
-        AiClient { client, api_key, endpoint: config.api.endpoint, model: config.api.model }
+        AiClient { client, config }
     }
 
     pub async fn send_chat_request(&self, messages: Vec<Message>) -> Result<String, Box<dyn std::error::Error>> {
-        let config = AppConfig::load().unwrap_or_default();
+        let config = AppConfig::load().unwrap();
 
         let request = ChatRequest {
-            model: self.model.clone(),
+            model: config.api.model.clone(),
             messages,
             max_tokens: config.api.max_tokens,
             temperature: config.api.temperature,
@@ -80,9 +73,9 @@ impl AiClient {
         };
         let response = self
             .client
-            .post(&self.endpoint)
+            .post(&self.config.api.endpoint)
             .header("Content-Type", "application/json")
-            .header("Authorization", format!("Bearer {}", self.api_key))
+            .header("Authorization", format!("Bearer {}", self.config.api.api_key))
             .json(&request)
             .send()
             .await?;
@@ -103,10 +96,9 @@ impl AiClient {
 
     pub async fn generate_commit_message(&self, diff: &str) -> Result<String, Box<dyn std::error::Error>> {
         let system_message = Message { role: "system".to_string(), content: get_system_prompt() };
-
-        let user_message = Message { role: "user".to_string(), content: format_simple_commit_prompt(diff) };
-
+        let user_message = Message { role: "user".to_string(), content: format_commit_prompt(diff) };
         let messages = vec![system_message, user_message];
+        debug!("Sending messages: {messages:?}");
         self.send_chat_request(messages).await
     }
 }

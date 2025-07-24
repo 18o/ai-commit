@@ -54,7 +54,7 @@ pub async fn handle_amend() -> Result<()> {
             execute_amend_with_cli(&message)?;
         }
         Err(e) => {
-            println!("{}", format!("❌ Failed to generate commit message: {e}").red());
+            println!("{}", format!("❌ Failed to generate commit message 1: {e}").red());
         }
     };
 
@@ -113,7 +113,7 @@ pub async fn handle_amend_with_options(dry_run: bool) -> Result<()> {
             }
         }
         Err(e) => {
-            println!("{}", format!("❌ Failed to generate commit message: {e}").red());
+            println!("{}", format!("❌ Failed to generate commit message 2: {e}").red());
         }
     };
 

@@ -4,6 +4,7 @@ use clap::{Arg, Command};
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    env_logger::init();
     let matches = Command::new("ai-commit")
         .version("1.0.0")
         .about("AI-assisted Git commit message generator (defaults to 'commit' if no subcommand)")

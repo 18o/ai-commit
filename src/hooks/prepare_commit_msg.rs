@@ -4,9 +4,8 @@ use std::fs;
 
 pub fn prepare_commit_msg() {
     let commit_msg_file = env::args().nth(1).expect("No commit message file provided");
-    
-    let mut commit_msg = fs::read_to_string(&commit_msg_file)
-        .expect("Failed to read commit message file");
+
+    let mut commit_msg = fs::read_to_string(&commit_msg_file).expect("Failed to read commit message file");
 
     // Here you can add logic to modify the commit message, e.g., integrating AI suggestions
     // For now, we will just append a note to the commit message

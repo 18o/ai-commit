@@ -9,12 +9,11 @@ AI Commit Tool integrates with your Git workflow to automatically generate high-
 ## Features
 
 - **AI-Generated Commit Messages**: Automatically analyzes git diffs and generates contextual commit messages following conventional commit format
-- **Smart Format Selection**: Automatically chooses between concise single-line messages or detailed bullet-point format based on change complexity
 - **Dry Run Mode**: Preview generated messages for unstaged changes without committing
 - **Amend Support**: Generate new messages for amending previous commits with additional changes
 - **Lock File Filtering**: Automatically ignores common lock files (Cargo.lock, package-lock.json, yarn.lock, etc.) from analysis
 - **GPG Signing Support**: Works seamlessly with GPG-signed commits
-- **Configurable**: Customizable API settings, ignore patterns, and behavior options
+- **Configurable**: Customizable API settings, ignore patterns, behavior options, and AI prompts
 
 ## Installation
 
@@ -22,7 +21,7 @@ AI Commit Tool integrates with your Git workflow to automatically generate high-
 
 - Rust (latest stable version)
 - Git repository
-- AI API key (set as environment variable `AI_COMMIT_ARK_API_KEY` or `ARK_API_KEY`)
+- Doubao AI API key (currently only support Doubao)
 
 ### Build from Source
 
@@ -30,12 +29,6 @@ AI Commit Tool integrates with your Git workflow to automatically generate high-
 git clone <repository-url>
 cd ai-commit
 cargo build --release
-```
-
-### Setup API Key
-
-```bash
-export AI_COMMIT_ARK_API_KEY="your-api-key-here"
 ```
 
 ## Usage
@@ -111,7 +104,14 @@ custom_ignore_patterns = []
 [hooks]
 enabled = false
 hook_types = ["prepare-commit-msg"]
+
+[prompts]
+system_prompt = """You are an expert software developer and git commit message writer..."""
+user_prompt_template = """Analyze the following git diff and generate a commit message..."""
+simple_prompt_template = """Generate a concise single-line commit message..."""
 ```
+
+### Configuration Management
 
 Initialize default configuration:
 
@@ -125,6 +125,68 @@ View current configuration:
 ai-commit config show
 ```
 
+Get help with editing prompts:
+
+```bash
+ai-commit config edit-prompts
+```
+
+### Configuration Options
+
+#### API Settings (`[api]`)
+
+- `endpoint`: AI service endpoint URL
+- `model`: AI model to use for generation
+- `max_tokens`: Maximum tokens for AI response
+- `temperature`: Creativity level (0.0-1.0)
+- `context_limit`: Maximum characters to send to AI
+
+#### Commit Settings (`[commit]`)
+
+- `auto_confirm`: Skip confirmation prompt
+- `dry_run_by_default`: Always run in dry-run mode
+- `ignore_lock_files`: Filter out lock files from analysis
+- `custom_ignore_patterns`: Additional file patterns to ignore
+
+#### Hook Settings (`[hooks]`)
+
+- `enabled`: Enable git hooks integration
+- `hook_types`: Types of git hooks to install
+
+#### Prompt Settings (`[prompts]`)
+
+- `system_prompt`: System prompt that defines AI behavior
+- `user_prompt_template`: Template for analyzing diffs (use `{diff}` placeholder)
+- `simple_prompt_template`: Template for simple single-line messages
+
+### Customizing AI Prompts
+
+You can customize how the AI generates commit messages by editing the prompt templates in your configuration file. The prompts support:
+
+- **System Prompt**: Defines the AI's role and commit format preferences
+- **User Prompt Template**: Instructions for analyzing diffs and generating messages
+- **Simple Prompt Template**: Focused template for concise single-line messages
+
+Example custom prompt:
+
+````toml
+[prompts]
+system_prompt = """You are a senior developer focused on clear, concise commits.
+Generate conventional commit messages prioritizing single-line format.
+Use bullet points only for truly unrelated changes."""
+
+user_prompt_template = """Generate a commit message for these changes.
+Prefer single-line format under 72 characters.
+
+Git diff:
+```diff
+{diff}
+````
+
+Provide only the commit message."""
+
+```
+
 ## Commit Message Format
 
 The tool generates messages following the Conventional Commits specification:
@@ -132,20 +194,24 @@ The tool generates messages following the Conventional Commits specification:
 ### Single-line Format (preferred)
 
 ```
+
 feat: add user authentication system
 fix: resolve database connection timeout
 refactor: improve error handling in auth module
+
 ```
 
 ### Multi-line Format (for complex changes)
 
 ```
+
 feat: add user management and notification system
 
 - Implement user CRUD operations with validation
 - Add email notification service for user events
 - Create admin dashboard for user management
-```
+
+````
 
 ### Supported Types
 
@@ -167,7 +233,7 @@ feat: add user management and notification system
 git add .
 ai-commit
 # Review generated message and confirm
-```
+````
 
 ### Amend Workflow
 
@@ -186,6 +252,18 @@ git add .
 ai-commit --dry-run
 ```
 
+### Configuration Workflow
+
+```bash
+# Initialize configuration
+ai-commit config init
+
+# Customize settings in ~/.config/ai-commit/config.toml
+# Then use normally
+git add .
+ai-commit
+```
+
 ## Technical Details
 
 ### Diff Analysis
@@ -201,6 +279,15 @@ ai-commit --dry-run
 - Sends contextual diff information for accurate analysis
 - Respects token limits and context windows
 - Handles API errors gracefully with fallback messages
+- Supports customizable prompts for different commit styles
+
+### Configuration Management
+
+- XDG Base Directory specification compliant
+- TOML format for easy editing
+- Environment variable support for API keys
+- Fallback to defaults if configuration is missing
+- Hot-reload of configuration changes
 
 ### Security
 
@@ -208,6 +295,7 @@ ai-commit --dry-run
 - Respects git configuration settings
 - No code or sensitive information stored externally
 - API keys managed through environment variables
+- Local configuration files only
 
 ## Contributing
 
@@ -229,4 +317,4 @@ cargo run -- --help
 
 ## License
 
-This project is licensed under the MIT License. See the LICENSE file for
+This project is licensed under the MIT License. See the LICENSE file for details.

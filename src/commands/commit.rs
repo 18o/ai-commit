@@ -52,7 +52,7 @@ pub async fn handle_commit() -> Result<()> {
             }
         }
         Err(e) => {
-            println!("{}", format!("❌ Failed to generate commit message: {e}").red());
+            println!("{}", format!("❌ Failed to generate commit message 3: {e}").red());
         }
     };
 

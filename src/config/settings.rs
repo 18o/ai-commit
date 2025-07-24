@@ -1,9 +1,8 @@
 use anyhow::Result;
+use log::debug;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
-
-use crate::config::prompt::*;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AppConfig {
@@ -16,6 +15,7 @@ pub struct AppConfig {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ApiConfig {
     pub endpoint: String,
+    pub api_key: String,
     pub model: String,
     pub max_tokens: Option<usize>,
     pub temperature: Option<f32>,
@@ -41,40 +41,21 @@ pub struct HookConfig {
 pub struct PromptConfig {
     pub system_prompt: String,
     pub user_prompt_template: String,
-    pub simple_prompt_template: String,
 }
 
 impl Default for AppConfig {
     fn default() -> Self {
-        Self {
-            api: ApiConfig {
-                endpoint: "https://ark.cn-beijing.volces.com/api/v3/chat/completions".to_string(),
-                model: "doubao-1-5-pro-32k-250115".to_string(),
-                max_tokens: Some(1000),
-                temperature: Some(0.7),
-                context_limit: 200000,
-            },
-            commit: CommitConfig {
-                auto_confirm: false,
-                dry_run_by_default: false,
-                gpg_sign: None,
-                ignore_lock_files: true,
-                custom_ignore_patterns: vec![],
-            },
-            hooks: HookConfig { enabled: false, hook_types: vec!["prepare-commit-msg".to_string()] },
-            prompts: PromptConfig {
-                system_prompt: get_default_system_prompt(),
-                user_prompt_template: get_default_user_prompt_template(),
-                simple_prompt_template: get_default_simple_prompt_template(),
-            },
-        }
+        AppConfig::load().unwrap_or_else(|_| {
+            eprintln!("Failed to load configuration, using default settings.");
+            std::process::exit(1);
+        })
     }
 }
 
 impl AppConfig {
     pub fn load() -> Result<Self> {
         let config_path = Self::config_path()?;
-
+        debug!("Loading configuration from: {}", config_path.display());
         if config_path.exists() {
             let config_content = fs::read_to_string(&config_path)?;
             let config: AppConfig = toml::from_str(&config_content)?;
@@ -99,9 +80,8 @@ impl AppConfig {
     }
 
     pub fn config_path() -> Result<PathBuf> {
-        let config_dir = dirs::config_dir().ok_or_else(|| anyhow::anyhow!("Could not find config directory"))?;
-
-        Ok(config_dir.join("ai-commit").join("config.toml"))
+        let home = std::env::var("HOME").map_err(|_| anyhow::anyhow!("Could not find HOME directory"))?;
+        Ok(PathBuf::from(home).join(".config").join("ai-commit").join("config.toml"))
     }
 
     pub fn get_api_key() -> Result<String> {
