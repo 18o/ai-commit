@@ -61,6 +61,12 @@ async fn main() -> Result<()> {
         Some(("uninstall", _)) => "uninstall",
         Some(("amend", _)) => "amend",
         Some(("commit", _)) => "commit",
+        Some(("config", sub_matches)) => match sub_matches.subcommand() {
+            Some(("show", _)) => "config-show",
+            Some(("init", _)) => "config-init",
+            Some(("edit-prompts", _)) => "config-edit-prompts",
+            _ => "config-show",
+        },
         _ => "commit",
     };
 

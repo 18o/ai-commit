@@ -1,5 +1,7 @@
 # AI Commit Tool
 
+[English](README.md) | [中文](README_zh.md)
+
 An intelligent Git commit message generator that uses AI to analyze your code changes and create meaningful, conventional commit messages automatically.
 
 ## Overview
@@ -9,11 +11,12 @@ AI Commit Tool integrates with your Git workflow to automatically generate high-
 ## Features
 
 - **AI-Generated Commit Messages**: Automatically analyzes git diffs and generates contextual commit messages following conventional commit format
+- **Smart Format Selection**: Automatically chooses between concise single-line messages or detailed bullet-point format based on change complexity
 - **Dry Run Mode**: Preview generated messages for unstaged changes without committing
 - **Amend Support**: Generate new messages for amending previous commits with additional changes
 - **Lock File Filtering**: Automatically ignores common lock files (Cargo.lock, package-lock.json, yarn.lock, etc.) from analysis
 - **GPG Signing Support**: Works seamlessly with GPG-signed commits
-- **Configurable**: Customizable API settings, ignore patterns, behavior options, and AI prompts
+- **Fully Configurable**: Customizable API settings, ignore patterns, behavior options, and AI prompts
 
 ## Installation
 
@@ -21,7 +24,7 @@ AI Commit Tool integrates with your Git workflow to automatically generate high-
 
 - Rust (latest stable version)
 - Git repository
-- Doubao AI API key (currently only support Doubao)
+- AI API key (set as environment variable `AI_COMMIT_ARK_API_KEY` or `ARK_API_KEY`)
 
 ### Build from Source
 
@@ -30,6 +33,19 @@ git clone <repository-url>
 cd ai-commit
 cargo build --release
 ```
+
+### Setup
+
+1. **Set API Key**:
+
+   ```bash
+   export AI_COMMIT_ARK_API_KEY="your-api-key-here"
+   ```
+
+2. **Initialize Configuration**:
+   ```bash
+   ai-commit config init
+   ```
 
 ## Usage
 
@@ -69,6 +85,19 @@ ai-commit --context-limit 100000
 ai-commit amend --dry-run
 ```
 
+### Configuration Commands
+
+```bash
+# Initialize default configuration
+ai-commit config init
+
+# View current configuration
+ai-commit config show
+
+# Get help with editing prompts
+ai-commit config edit-prompts
+```
+
 ### Git Hooks Integration
 
 Install git hooks for automatic commit message assistance:
@@ -85,7 +114,13 @@ ai-commit uninstall
 
 ## Configuration
 
-The tool supports configuration through `~/.config/ai-commit/config.toml`:
+The tool stores configuration in `~/.config/ai-commit/config.toml`. Initialize with default settings:
+
+```bash
+ai-commit config init
+```
+
+### Default Configuration Structure
 
 ```toml
 [api]
@@ -106,29 +141,9 @@ enabled = false
 hook_types = ["prepare-commit-msg"]
 
 [prompts]
-system_prompt = """You are an expert software developer and git commit message writer..."""
-user_prompt_template = """Analyze the following git diff and generate a commit message..."""
-simple_prompt_template = """Generate a concise single-line commit message..."""
-```
-
-### Configuration Management
-
-Initialize default configuration:
-
-```bash
-ai-commit config init
-```
-
-View current configuration:
-
-```bash
-ai-commit config show
-```
-
-Get help with editing prompts:
-
-```bash
-ai-commit config edit-prompts
+system_prompt = """You are an expert software developer..."""
+user_prompt_template = """Analyze the following git diff..."""
+simple_prompt_template = """Generate a concise single-line..."""
 ```
 
 ### Configuration Options
@@ -137,21 +152,21 @@ ai-commit config edit-prompts
 
 - `endpoint`: AI service endpoint URL
 - `model`: AI model to use for generation
-- `max_tokens`: Maximum tokens for AI response
-- `temperature`: Creativity level (0.0-1.0)
-- `context_limit`: Maximum characters to send to AI
+- `max_tokens`: Maximum tokens for AI response (default: 1000)
+- `temperature`: Creativity level 0.0-1.0 (default: 0.7)
+- `context_limit`: Maximum characters to send to AI (default: 200000)
 
 #### Commit Settings (`[commit]`)
 
-- `auto_confirm`: Skip confirmation prompt
-- `dry_run_by_default`: Always run in dry-run mode
-- `ignore_lock_files`: Filter out lock files from analysis
-- `custom_ignore_patterns`: Additional file patterns to ignore
+- `auto_confirm`: Skip confirmation prompt (default: false)
+- `dry_run_by_default`: Always run in dry-run mode (default: false)
+- `ignore_lock_files`: Filter out lock files from analysis (default: true)
+- `custom_ignore_patterns`: Additional file patterns to ignore (default: [])
 
 #### Hook Settings (`[hooks]`)
 
-- `enabled`: Enable git hooks integration
-- `hook_types`: Types of git hooks to install
+- `enabled`: Enable git hooks integration (default: false)
+- `hook_types`: Types of git hooks to install (default: ["prepare-commit-msg"])
 
 #### Prompt Settings (`[prompts]`)
 
@@ -161,13 +176,17 @@ ai-commit config edit-prompts
 
 ### Customizing AI Prompts
 
-You can customize how the AI generates commit messages by editing the prompt templates in your configuration file. The prompts support:
+You can fully customize how the AI generates commit messages by editing the configuration file:
 
-- **System Prompt**: Defines the AI's role and commit format preferences
-- **User Prompt Template**: Instructions for analyzing diffs and generating messages
-- **Simple Prompt Template**: Focused template for concise single-line messages
+```bash
+# View current configuration and file location
+ai-commit config show
 
-Example custom prompt:
+# Get help with editing prompts
+ai-commit config edit-prompts
+```
+
+Edit `~/.config/ai-commit/config.toml` to customize prompts:
 
 ````toml
 [prompts]
@@ -187,12 +206,18 @@ Provide only the commit message."""
 
 ```
 
+**Tips for Custom Prompts:**
+- Keep the `{diff}` placeholder in templates
+- Test changes with `ai-commit --dry-run`
+- Configuration reloads automatically on next run
+- Back up custom prompts before updates
+
 ## Commit Message Format
 
 The tool generates messages following the Conventional Commits specification:
 
 ### Single-line Format (preferred)
-
+Used for focused changes with single purpose:
 ```
 
 feat: add user authentication system
@@ -202,6 +227,9 @@ refactor: improve error handling in auth module
 ```
 
 ### Multi-line Format (for complex changes)
+Used when there are:
+1. **Multiple unrelated functional changes** (different features/fixes in one commit)
+2. **Single feature with significant changes** that benefit from breakdown explanation
 
 ```
 
@@ -214,7 +242,6 @@ feat: add user management and notification system
 ````
 
 ### Supported Types
-
 - `feat`: A new feature
 - `fix`: A bug fix
 - `docs`: Documentation only changes
@@ -226,6 +253,16 @@ feat: add user management and notification system
 
 ## Workflow Examples
 
+### Initial Setup
+```bash
+# One-time setup
+export AI_COMMIT_ARK_API_KEY="your-api-key"
+ai-commit config init
+
+# Verify configuration
+ai-commit config show
+````
+
 ### Standard Workflow
 
 ```bash
@@ -233,7 +270,7 @@ feat: add user management and notification system
 git add .
 ai-commit
 # Review generated message and confirm
-````
+```
 
 ### Amend Workflow
 
@@ -252,16 +289,16 @@ git add .
 ai-commit --dry-run
 ```
 
-### Configuration Workflow
+### Customization Workflow
 
 ```bash
-# Initialize configuration
-ai-commit config init
+# Edit configuration file
+ai-commit config show  # shows file location
+# Edit ~/.config/ai-commit/config.toml
 
-# Customize settings in ~/.config/ai-commit/config.toml
-# Then use normally
+# Test your changes
 git add .
-ai-commit
+ai-commit --dry-run
 ```
 
 ## Technical Details
@@ -279,23 +316,23 @@ ai-commit
 - Sends contextual diff information for accurate analysis
 - Respects token limits and context windows
 - Handles API errors gracefully with fallback messages
-- Supports customizable prompts for different commit styles
+- Supports fully customizable prompts for different commit styles
 
 ### Configuration Management
 
-- XDG Base Directory specification compliant
-- TOML format for easy editing
+- XDG Base Directory specification compliant (`~/.config/ai-commit/`)
+- TOML format for easy editing and version control
 - Environment variable support for API keys
-- Fallback to defaults if configuration is missing
-- Hot-reload of configuration changes
+- Fallback to sensible defaults if configuration is missing
+- Hot-reload of configuration changes without restart
 
 ### Security
 
 - Works with GPG-signed commits
 - Respects git configuration settings
 - No code or sensitive information stored externally
-- API keys managed through environment variables
-- Local configuration files only
+- API keys managed through environment variables only
+- Local configuration files with proper permissions
 
 ## Contributing
 

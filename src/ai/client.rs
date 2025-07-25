@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     ai::format_commit_prompt,
-    config::{prompt::get_system_prompt, AppConfig},
+    config::{AppConfig, prompt::get_system_prompt},
 };
 
 #[derive(Serialize, Debug)]
