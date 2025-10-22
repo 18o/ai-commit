@@ -9,6 +9,12 @@ pub fn execute_commit_with_cli(message: &str) -> Result<()> {
 
     if is_gpg_signing_enabled()? {
         println!("🔐 GPG signing is enabled, using git command for proper signing...");
+        if let Ok(tty) = Command::new("tty").output()
+            && tty.status.success()
+        {
+            let tty_path = String::from_utf8_lossy(&tty.stdout).trim().to_string();
+            cmd.env("GPG_TTY", tty_path);
+        }
     }
 
     let status = cmd.status()?;
@@ -60,6 +66,12 @@ pub fn execute_amend_with_cli(message: &str) -> Result<()> {
 
     if is_gpg_signing_enabled()? {
         println!("🔐 GPG signing is enabled, using git command for proper signing...");
+        if let Ok(tty) = Command::new("tty").output()
+            && tty.status.success()
+        {
+            let tty_path = String::from_utf8_lossy(&tty.stdout).trim().to_string();
+            cmd.env("GPG_TTY", tty_path);
+        }
     }
 
     let status = cmd.status()?;

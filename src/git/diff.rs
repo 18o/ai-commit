@@ -77,10 +77,10 @@ fn should_ignore_file(path: &std::path::Path) -> bool {
         "go.sum",
     ];
 
-    if let Some(filename) = path.file_name() {
-        if let Some(filename_str) = filename.to_str() {
-            return ignored_files.contains(&filename_str);
-        }
+    if let Some(filename) = path.file_name()
+        && let Some(filename_str) = filename.to_str()
+    {
+        return ignored_files.contains(&filename_str);
     }
 
     false

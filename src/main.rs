@@ -1,3 +1,5 @@
+#![warn(clippy::style, clippy::complexity, clippy::perf, clippy::correctness)]
+
 use ai_commit::commands::execute_command;
 use anyhow::Result;
 use clap::{Arg, Command};
