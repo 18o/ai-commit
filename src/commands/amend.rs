@@ -5,7 +5,7 @@ use std::io::{self, Write};
 use crate::ai::AiClient;
 use crate::git::{execute_amend_with_cli, get_amend_diff, get_last_commit_message, get_staged_diff};
 
-pub async fn handle_amend() -> Result<()> {
+pub async fn handle_amend(keywords: Option<&str>) -> Result<()> {
     let ai_client = AiClient::new();
 
     // 检查是否有staged changes或者需要amend
@@ -32,9 +32,18 @@ pub async fn handle_amend() -> Result<()> {
     println!("{}", last_commit_msg.trim().bright_yellow());
     println!("{}", "─────────────────────".bright_blue());
 
+    if let Some(kw) = keywords {
+        println!("{}", format!("📝 Using keywords: {}", kw).cyan());
+    }
     println!("{}", "🤖 Generating new commit message using AI service...".cyan());
 
-    match ai_client.generate_commit_message(&diff_content).await {
+    let result = if let Some(kw) = keywords {
+        ai_client.generate_commit_message_with_keywords(&diff_content, kw).await
+    } else {
+        ai_client.generate_commit_message(&diff_content).await
+    };
+
+    match result {
         Ok(message) => {
             if message.is_empty() {
                 println!("{}", "❌ AI did not generate a commit message.".red());
@@ -61,7 +70,7 @@ pub async fn handle_amend() -> Result<()> {
     Ok(())
 }
 
-pub async fn handle_amend_with_options(dry_run: bool) -> Result<()> {
+pub async fn handle_amend_with_options(dry_run: bool, keywords: Option<&str>) -> Result<()> {
     let ai_client = AiClient::new();
 
     let staged_diff = get_staged_diff()?;
@@ -87,9 +96,18 @@ pub async fn handle_amend_with_options(dry_run: bool) -> Result<()> {
     println!("{}", last_commit_msg.trim().bright_yellow());
     println!("{}", "─────────────────────".bright_blue());
 
+    if let Some(kw) = keywords {
+        println!("{}", format!("📝 Using keywords: {}", kw).cyan());
+    }
     println!("{}", "🤖 Generating new commit message using AI service...".cyan());
 
-    match ai_client.generate_commit_message(&diff_content).await {
+    let result = if let Some(kw) = keywords {
+        ai_client.generate_commit_message_with_keywords(&diff_content, kw).await
+    } else {
+        ai_client.generate_commit_message(&diff_content).await
+    };
+
+    match result {
         Ok(message) => {
             if message.is_empty() {
                 println!("{}", "❌ AI did not generate a commit message.".red());

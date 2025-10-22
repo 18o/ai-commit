@@ -11,6 +11,7 @@ AI Commit Tool 集成到你的 Git 工作流程中，自动生成遵循 Conventi
 ## 功能特性
 
 - **AI 生成提交信息**：自动分析 git diff 并生成遵循常规提交格式的上下文提交信息
+- **关键词引导生成**：提供关键词或上下文来引导 AI 关注变更的特定方面
 - **智能格式选择**：根据变更复杂度自动选择简洁的单行信息或详细的项目符号格式
 - **试运行模式**：为未暂存的变更预览生成的信息而不提交
 - **修订支持**：为修订之前的提交生成新信息
@@ -59,6 +60,17 @@ ai-commit
 ai-commit commit
 ```
 
+使用关键词引导 AI 生成提交信息：
+
+```bash
+# 直接使用 -k 参数（推荐，更简洁）
+ai-commit -k "修复认证 bug"
+ai-commit --keywords "添加用户资料功能"
+
+# 或者明确指定 commit 子命令
+ai-commit commit -k "修复认证 bug"
+```
+
 为未暂存的变更预览提交信息（试运行模式）：
 
 ```bash
@@ -70,13 +82,32 @@ ai-commit
 
 ```bash
 ai-commit amend
+# 使用关键词
+ai-commit amend -k "改进错误处理"
 ```
 
 ### 命令选项
 
 ```bash
+# 提供关键词引导 AI 生成（推荐简写形式）
+ai-commit -k "修复缓存模块中的内存泄漏"
+ai-commit --keywords "重构认证流程"
+
+# 或者使用明确的 commit 子命令
+ai-commit commit -k "提高性能"
+
 # 显示生成的信息但不提交
 ai-commit --dry-run
+
+# 限制发送到 AI 的上下文（默认：200000 字符）
+ai-commit --context-limit 100000
+
+# 组合选项
+ai-commit commit -k "提高性能" --dry-run
+
+# 使用关键词和试运行模式修订
+ai-commit amend -k "添加验证" --dry-run
+```
 
 # 限制发送给 AI 的上下文（默认：200000 字符）
 ai-commit --context-limit 100000

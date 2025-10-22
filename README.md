@@ -11,6 +11,7 @@ AI Commit Tool integrates with your Git workflow to automatically generate high-
 ## Features
 
 - **AI-Generated Commit Messages**: Automatically analyzes git diffs and generates contextual commit messages following conventional commit format
+- **Keyword-Guided Generation**: Provide keywords or context to guide AI focus on specific aspects of your changes
 - **Smart Format Selection**: Automatically chooses between concise single-line messages or detailed bullet-point format based on change complexity
 - **Dry Run Mode**: Preview generated messages for unstaged changes without committing
 - **Amend Support**: Generate new messages for amending previous commits with additional changes
@@ -59,6 +60,17 @@ ai-commit
 ai-commit commit
 ```
 
+Generate commit message with keywords to guide AI:
+
+```bash
+# 直接使用 -k 参数（推荐，更简洁）
+ai-commit -k "fix authentication bug"
+ai-commit --keywords "add user profile feature"
+
+# 或者明确指定 commit 子命令
+ai-commit commit -k "fix authentication bug"
+```
+
 Preview commit message for unstaged changes (dry-run mode):
 
 ```bash
@@ -70,19 +82,31 @@ Amend the last commit with new changes:
 
 ```bash
 ai-commit amend
+# With keywords
+ai-commit amend -k "improve error handling"
 ```
 
 ### Command Options
 
 ```bash
+# Provide keywords to guide AI generation (recommended short form)
+ai-commit -k "fix memory leak in cache module"
+ai-commit --keywords "refactor authentication flow"
+
+# Or with explicit commit subcommand
+ai-commit commit -k "improve performance"
+
 # Show generated message without committing
 ai-commit --dry-run
 
 # Limit context sent to AI (default: 200000 characters)
 ai-commit --context-limit 100000
 
-# Amend with dry-run
-ai-commit amend --dry-run
+# Combine options
+ai-commit commit -k "improve performance" --dry-run
+
+# Amend with keywords and dry-run
+ai-commit amend -k "add validation" --dry-run
 ```
 
 ### Configuration Commands

@@ -1,6 +1,6 @@
 #![warn(clippy::style, clippy::complexity, clippy::perf, clippy::correctness)]
 
-use ai_commit::commands::execute_command;
+use ai_commit::commands::{amend, commit, execute_command};
 use anyhow::Result;
 use clap::{Arg, Command};
 
@@ -8,11 +8,19 @@ use clap::{Arg, Command};
 async fn main() -> Result<()> {
     env_logger::init();
     let matches = Command::new("ai-commit")
-        .version("1.0.0")
+        .version(env!("CARGO_PKG_VERSION"))
         .about("AI-assisted Git commit message generator (defaults to 'commit' if no subcommand)")
         .author("John")
         .subcommand_required(false)
         .arg_required_else_help(false)
+        .arg(
+            Arg::new("keywords")
+                .short('k')
+                .long("keywords")
+                .value_name("KEYWORDS")
+                .help("Keywords or context to guide AI commit message generation (implies 'commit' command)")
+                .global(false),
+        )
         .subcommand(Command::new("install").about("Install git hooks for AI commit assistance"))
         .subcommand(Command::new("uninstall").about("Remove AI commit hooks"))
         .subcommand(
@@ -30,6 +38,13 @@ async fn main() -> Result<()> {
                         .long("dry-run")
                         .help("Show generated message without committing")
                         .action(clap::ArgAction::SetTrue),
+                )
+                .arg(
+                    Arg::new("keywords")
+                        .short('k')
+                        .long("keywords")
+                        .value_name("KEYWORDS")
+                        .help("Keywords or context to guide AI commit message generation"),
                 ),
         )
         .subcommand(
@@ -47,6 +62,13 @@ async fn main() -> Result<()> {
                         .long("dry-run")
                         .help("Show generated message without amending")
                         .action(clap::ArgAction::SetTrue),
+                )
+                .arg(
+                    Arg::new("keywords")
+                        .short('k')
+                        .long("keywords")
+                        .value_name("KEYWORDS")
+                        .help("Keywords or context to guide AI commit message generation"),
                 ),
         )
         .subcommand(
@@ -61,15 +83,29 @@ async fn main() -> Result<()> {
     let command = match matches.subcommand() {
         Some(("install", _)) => "install",
         Some(("uninstall", _)) => "uninstall",
-        Some(("amend", _)) => "amend",
-        Some(("commit", _)) => "commit",
+        Some(("amend", sub_matches)) => {
+            let keywords = sub_matches.get_one::<String>("keywords").map(|s| s.as_str());
+            return amend::handle_amend(keywords).await;
+        }
+        Some(("commit", sub_matches)) => {
+            let keywords = sub_matches.get_one::<String>("keywords").map(|s| s.as_str());
+            return commit::handle_commit(keywords).await;
+        }
         Some(("config", sub_matches)) => match sub_matches.subcommand() {
             Some(("show", _)) => "config-show",
             Some(("init", _)) => "config-init",
             Some(("edit-prompts", _)) => "config-edit-prompts",
             _ => "config-show",
         },
-        _ => "commit",
+        Some((_, sub_matches)) => {
+            let keywords = sub_matches.get_one::<String>("keywords").map(|s| s.as_str());
+            return commit::handle_commit(keywords).await;
+        }
+        _ => {
+            // Default to executing the commit command, supporting the top-level -k parameter
+            let keywords = matches.get_one::<String>("keywords").map(|s| s.as_str());
+            return commit::handle_commit(keywords).await;
+        }
     };
 
     execute_command(command).await

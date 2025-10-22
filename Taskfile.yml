@@ -4,10 +4,12 @@ vars:
   GREETING: Hello, AI Commit!
 
 tasks:
+  default:
+    cmd: task --list-all
   build:
     cmds:
       - cargo build -r
-      - cp target/release/ai-commit ~/.bin/ai-commit
+      - cp /Users/john/.cargo/target/release/ai-commit /opt/bin/ai-commit
   commit:
     cmds:
       - git add .

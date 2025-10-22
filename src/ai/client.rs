@@ -3,7 +3,7 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    ai::format_commit_prompt,
+    ai::{format_commit_prompt, format_commit_prompt_with_keywords},
     config::{AppConfig, prompt::get_system_prompt},
 };
 
@@ -97,6 +97,14 @@ impl AiClient {
     pub async fn generate_commit_message(&self, diff: &str) -> Result<String, Box<dyn std::error::Error>> {
         let system_message = Message { role: "system".to_string(), content: get_system_prompt() };
         let user_message = Message { role: "user".to_string(), content: format_commit_prompt(diff) };
+        let messages = vec![system_message, user_message];
+        debug!("Sending messages: {messages:?}");
+        self.send_chat_request(messages).await
+    }
+
+    pub async fn generate_commit_message_with_keywords(&self, diff: &str, keywords: &str) -> Result<String, Box<dyn std::error::Error>> {
+        let system_message = Message { role: "system".to_string(), content: get_system_prompt() };
+        let user_message = Message { role: "user".to_string(), content: format_commit_prompt_with_keywords(diff, keywords) };
         let messages = vec![system_message, user_message];
         debug!("Sending messages: {messages:?}");
         self.send_chat_request(messages).await

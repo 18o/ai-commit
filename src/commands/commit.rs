@@ -5,7 +5,7 @@ use std::io::{self, Write};
 use crate::ai::AiClient;
 use crate::git::{execute_commit_with_cli, get_staged_diff, get_unstaged_diff};
 
-pub async fn handle_commit() -> Result<()> {
+pub async fn handle_commit(keywords: Option<&str>) -> Result<()> {
     let ai_client = AiClient::new();
 
     let staged_diff = get_staged_diff()?;
@@ -24,9 +24,18 @@ pub async fn handle_commit() -> Result<()> {
         return Ok(());
     };
 
+    if let Some(kw) = keywords {
+        println!("{}", format!("📝 Using keywords: {}", kw).cyan());
+    }
     println!("{}", "🤖 Generating commit message using AI service...".cyan());
 
-    match ai_client.generate_commit_message(&diff_content).await {
+    let result = if let Some(kw) = keywords {
+        ai_client.generate_commit_message_with_keywords(&diff_content, kw).await
+    } else {
+        ai_client.generate_commit_message(&diff_content).await
+    };
+
+    match result {
         Ok(message) => {
             if message.is_empty() {
                 println!("{}", "❌ AI did not generate a commit message.".red());
