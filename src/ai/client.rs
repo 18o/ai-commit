@@ -1,11 +1,10 @@
 use log::debug;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
 
-use crate::{
-    ai::{format_commit_prompt, format_commit_prompt_with_keywords},
-    config::{AppConfig, prompt::get_system_prompt},
-};
+use crate::config::ApiConfig;
+use crate::config::prompt::{format_commit_prompt, format_commit_prompt_with_keywords, get_system_prompt};
 
 #[derive(Serialize, Debug)]
 pub struct Message {
@@ -16,21 +15,9 @@ pub struct Message {
 #[derive(Serialize, Debug)]
 pub struct ChatRequest {
     model: String,
-    thinking: Thinking,
     messages: Vec<Message>,
     max_tokens: Option<usize>,
     temperature: Option<f32>,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-struct Thinking {
-    r#type: String,
-}
-
-impl Default for Thinking {
-    fn default() -> Self {
-        Thinking { r#type: "disabled".to_string() }
-    }
 }
 
 #[derive(Deserialize)]
@@ -48,53 +35,54 @@ struct ChatResponse {
     choices: Vec<Choice>,
 }
 
-#[derive(Default)]
 pub struct AiClient {
     client: Client,
-    config: AppConfig,
+    config: ApiConfig,
 }
 
 impl AiClient {
-    pub fn new() -> Self {
-        let config = AppConfig::load().unwrap_or_default();
-        let client = Client::new();
+    pub fn new(config: ApiConfig) -> Self {
+        let client = Client::builder()
+            .connect_timeout(Duration::from_secs(10))
+            .timeout(Duration::from_secs(60))
+            .build()
+            .unwrap();
         AiClient { client, config }
     }
 
-    pub async fn send_chat_request(&self, messages: Vec<Message>) -> Result<String, Box<dyn std::error::Error>> {
-        let config = AppConfig::load().unwrap();
-
+    pub async fn send_chat_request(&self, messages: Vec<Message>) -> anyhow::Result<String> {
         let request = ChatRequest {
-            model: config.api.model.clone(),
+            model: self.config.model.clone(),
             messages,
-            max_tokens: config.api.max_tokens,
-            temperature: config.api.temperature,
-            thinking: Thinking::default(),
+            max_tokens: self.config.max_tokens,
+            temperature: self.config.temperature,
         };
+
         let response = self
             .client
-            .post(&self.config.api.endpoint)
+            .post(&self.config.endpoint)
             .header("Content-Type", "application/json")
-            .header("Authorization", format!("Bearer {}", self.config.api.api_key))
+            .header("Authorization", format!("Bearer {}", self.config.api_key))
             .json(&request)
             .send()
             .await?;
 
         if !response.status().is_success() {
+            let status = response.status();
             let error_text = response.text().await?;
-            return Err(format!("API request failed: {error_text}").into());
+            anyhow::bail!("API request failed ({status}): {error_text}");
         }
 
         let chat_response: ChatResponse = response.json().await?;
 
-        if let Some(choice) = chat_response.choices.first() {
-            Ok(choice.message.content.clone())
-        } else {
-            Err("No response from AI".into())
-        }
+        chat_response
+            .choices
+            .first()
+            .map(|c| c.message.content.clone())
+            .ok_or_else(|| anyhow::anyhow!("No response from AI"))
     }
 
-    pub async fn generate_commit_message(&self, diff: &str) -> Result<String, Box<dyn std::error::Error>> {
+    pub async fn generate_commit_message(&self, diff: &str) -> anyhow::Result<String> {
         let system_message = Message { role: "system".to_string(), content: get_system_prompt() };
         let user_message = Message { role: "user".to_string(), content: format_commit_prompt(diff) };
         let messages = vec![system_message, user_message];
@@ -102,9 +90,10 @@ impl AiClient {
         self.send_chat_request(messages).await
     }
 
-    pub async fn generate_commit_message_with_keywords(&self, diff: &str, keywords: &str) -> Result<String, Box<dyn std::error::Error>> {
+    pub async fn generate_commit_message_with_keywords(&self, diff: &str, keywords: &str) -> anyhow::Result<String> {
         let system_message = Message { role: "system".to_string(), content: get_system_prompt() };
-        let user_message = Message { role: "user".to_string(), content: format_commit_prompt_with_keywords(diff, keywords) };
+        let user_message =
+            Message { role: "user".to_string(), content: format_commit_prompt_with_keywords(diff, keywords) };
         let messages = vec![system_message, user_message];
         debug!("Sending messages: {messages:?}");
         self.send_chat_request(messages).await

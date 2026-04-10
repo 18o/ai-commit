@@ -1,7 +1,5 @@
 # AI Commit Tool
 
-[English](README.md) | [中文](README_zh.md)
-
 An intelligent Git commit message generator that uses AI to analyze your code changes and create meaningful, conventional commit messages automatically.
 
 ## Overview
@@ -13,11 +11,15 @@ AI Commit Tool integrates with your Git workflow to automatically generate high-
 - **AI-Generated Commit Messages**: Automatically analyzes git diffs and generates contextual commit messages following conventional commit format
 - **Keyword-Guided Generation**: Provide keywords or context to guide AI focus on specific aspects of your changes
 - **Smart Format Selection**: Automatically chooses between concise single-line messages or detailed bullet-point format based on change complexity
-- **Dry Run Mode**: Preview generated messages for unstaged changes without committing
+- **Dry Run Mode**: Preview generated messages without committing via `--dry-run`
+- **Context Limit**: Control how much diff content is sent to the AI via `--context-limit`
 - **Amend Support**: Generate new messages for amending previous commits with additional changes
 - **Lock File Filtering**: Automatically ignores common lock files (Cargo.lock, package-lock.json, yarn.lock, etc.) from analysis
+- **Custom Ignore Patterns**: Glob-based patterns to filter out files from analysis (e.g. `**/generated/**`)
 - **GPG Signing Support**: Works seamlessly with GPG-signed commits
-- **Fully Configurable**: Customizable API settings, ignore patterns, behavior options, and AI prompts
+- **Environment Variables**: API credentials read from environment variables, never stored in config files
+- **Configurable Env Var Names**: Customize which environment variable names are used via `[env]` section
+- **Fully Configurable**: Customizable commit behavior, ignore patterns, and AI prompts
 
 ## Installation
 
@@ -25,7 +27,7 @@ AI Commit Tool integrates with your Git workflow to automatically generate high-
 
 - Rust (latest stable version)
 - Git repository
-- AI API key (set as environment variable `AI_COMMIT_ARK_API_KEY` or `ARK_API_KEY`)
+- An OpenAI-compatible API endpoint and key
 
 ### Build from Source
 
@@ -37,13 +39,17 @@ cargo build --release
 
 ### Setup
 
-1. **Set API Key**:
+1. **Set environment variables**:
 
    ```bash
-   export AI_COMMIT_ARK_API_KEY="your-api-key-here"
+   export AI_COMMIT_API_KEY="your-api-key-here"
+   export AI_COMMIT_MODEL="your-model-name"
+   # Optional: override the default endpoint
+   export AI_COMMIT_ENDPOINT="https://your-api-endpoint/chat/completions"
    ```
 
-2. **Initialize Configuration**:
+2. **Initialize configuration** (optional, creates default config with prompt templates):
+
    ```bash
    ai-commit config init
    ```
@@ -63,49 +69,34 @@ ai-commit commit
 Generate commit message with keywords to guide AI:
 
 ```bash
-# 直接使用 -k 参数（推荐，更简洁）
 ai-commit -k "fix authentication bug"
-ai-commit --keywords "add user profile feature"
-
-# 或者明确指定 commit 子命令
-ai-commit commit -k "fix authentication bug"
+ai-commit commit -k "add user profile feature"
 ```
 
-Preview commit message for unstaged changes (dry-run mode):
+Preview commit message without committing (dry-run mode):
 
 ```bash
-# Will automatically enter dry-run mode if no staged changes found
-ai-commit
+ai-commit --dry-run
+ai-commit commit --dry-run
+```
+
+Limit context sent to AI:
+
+```bash
+ai-commit --context-limit 100000
 ```
 
 Amend the last commit with new changes:
 
 ```bash
 ai-commit amend
-# With keywords
 ai-commit amend -k "improve error handling"
 ```
 
-### Command Options
+Combine options:
 
 ```bash
-# Provide keywords to guide AI generation (recommended short form)
-ai-commit -k "fix memory leak in cache module"
-ai-commit --keywords "refactor authentication flow"
-
-# Or with explicit commit subcommand
-ai-commit commit -k "improve performance"
-
-# Show generated message without committing
-ai-commit --dry-run
-
-# Limit context sent to AI (default: 200000 characters)
-ai-commit --context-limit 100000
-
-# Combine options
-ai-commit commit -k "improve performance" --dry-run
-
-# Amend with keywords and dry-run
+ai-commit commit -k "improve performance" --dry-run --context-limit 50000
 ai-commit amend -k "add validation" --dry-run
 ```
 
@@ -115,7 +106,7 @@ ai-commit amend -k "add validation" --dry-run
 # Initialize default configuration
 ai-commit config init
 
-# View current configuration
+# View current configuration (shows env var names, not values)
 ai-commit config show
 
 # Get help with editing prompts
@@ -144,153 +135,152 @@ The tool stores configuration in `~/.config/ai-commit/config.toml`. Initialize w
 ai-commit config init
 ```
 
-### Default Configuration Structure
+### Configuration Structure
 
 ```toml
-[api]
-endpoint = "https://ark.cn-beijing.volces.com/api/v3/chat/completions"
-model = "doubao-1-5-pro-32k-250115"
-max_tokens = 1000
-temperature = 0.7
-context_limit = 200000
+# Customize which environment variable names to read
+# Defaults shown below — only uncomment and change if needed
+[env]
+# endpoint_env = "AI_COMMIT_ENDPOINT"
+# api_key_env = "AI_COMMIT_API_KEY"
+# model_env = "AI_COMMIT_MODEL"
 
 [commit]
 auto_confirm = false
 dry_run_by_default = false
 ignore_lock_files = true
 custom_ignore_patterns = []
+context_limit = 200000
 
 [hooks]
 enabled = false
-hook_types = ["prepare-commit-msg"]
+hook_types = []
 
 [prompts]
 system_prompt = """You are an expert software developer..."""
-user_prompt_template = """Analyze the following git diff..."""
-simple_prompt_template = """Generate a concise single-line..."""
+user_prompt_template = """Analyze the following git diff...
+```diff
+{diff}
+```"""
 ```
 
 ### Configuration Options
 
-#### API Settings (`[api]`)
+#### Environment Variables (`[env]`)
 
-- `endpoint`: AI service endpoint URL
-- `model`: AI model to use for generation
-- `max_tokens`: Maximum tokens for AI response (default: 1000)
-- `temperature`: Creativity level 0.0-1.0 (default: 0.7)
-- `context_limit`: Maximum characters to send to AI (default: 200000)
+Customize the environment variable names used to read API credentials. This lets you integrate with existing CI/CD environments without setting extra variables.
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `endpoint_env` | `AI_COMMIT_ENDPOINT` | Env var for API endpoint URL |
+| `api_key_env` | `AI_COMMIT_API_KEY` | Env var for API key |
+| `model_env` | `AI_COMMIT_MODEL` | Env var for model name |
+
+Example — using OpenAI-compatible variables:
+
+```toml
+[env]
+api_key_env = "OPENAI_API_KEY"
+model_env = "OPENAI_MODEL"
+endpoint_env = "OPENAI_BASE_URL"
+```
 
 #### Commit Settings (`[commit]`)
 
-- `auto_confirm`: Skip confirmation prompt (default: false)
-- `dry_run_by_default`: Always run in dry-run mode (default: false)
-- `ignore_lock_files`: Filter out lock files from analysis (default: true)
-- `custom_ignore_patterns`: Additional file patterns to ignore (default: [])
-
-#### Hook Settings (`[hooks]`)
-
-- `enabled`: Enable git hooks integration (default: false)
-- `hook_types`: Types of git hooks to install (default: ["prepare-commit-msg"])
+| Field | Default | Description |
+|-------|---------|-------------|
+| `auto_confirm` | `false` | Skip confirmation prompt |
+| `dry_run_by_default` | `false` | Always run in dry-run mode |
+| `ignore_lock_files` | `true` | Filter out lock files from analysis |
+| `custom_ignore_patterns` | `[]` | Glob patterns for files to ignore (e.g. `["**/generated/**"]`) |
+| `context_limit` | `200000` | Maximum characters of diff sent to AI |
 
 #### Prompt Settings (`[prompts]`)
 
-- `system_prompt`: System prompt that defines AI behavior
-- `user_prompt_template`: Template for analyzing diffs (use `{diff}` placeholder)
-- `simple_prompt_template`: Template for simple single-line messages
+| Field | Description |
+|-------|-------------|
+| `system_prompt` | System prompt that defines AI behavior and commit format |
+| `user_prompt_template` | Template for analyzing diffs — must contain `{diff}` placeholder |
 
 ### Customizing AI Prompts
 
-You can fully customize how the AI generates commit messages by editing the configuration file:
+Edit `~/.config/ai-commit/config.toml` to customize how the AI generates commit messages:
 
-```bash
-# View current configuration and file location
-ai-commit config show
-
-# Get help with editing prompts
-ai-commit config edit-prompts
-```
-
-Edit `~/.config/ai-commit/config.toml` to customize prompts:
-
-````toml
+```toml
 [prompts]
 system_prompt = """You are a senior developer focused on clear, concise commits.
 Generate conventional commit messages prioritizing single-line format.
 Use bullet points only for truly unrelated changes."""
 
-user_prompt_template = """Generate a commit message for these changes.
+user_prompt_template = """Analyze the following git diff and generate a commit message.
 Prefer single-line format under 72 characters.
 
 Git diff:
 ```diff
 {diff}
-````
-
-Provide only the commit message."""
-
 ```
 
-**Tips for Custom Prompts:**
+Provide only the commit message."""
+```
+
+**Tips:**
 - Keep the `{diff}` placeholder in templates
 - Test changes with `ai-commit --dry-run`
 - Configuration reloads automatically on next run
-- Back up custom prompts before updates
 
 ## Commit Message Format
 
-The tool generates messages following the Conventional Commits specification:
+The tool generates messages following the Conventional Commits specification.
 
 ### Single-line Format (preferred)
-Used for focused changes with single purpose:
-```
 
+Used for focused changes with a single purpose:
+
+```
 feat: add user authentication system
 fix: resolve database connection timeout
 refactor: improve error handling in auth module
-
 ```
 
 ### Multi-line Format (for complex changes)
-Used when there are:
-1. **Multiple unrelated functional changes** (different features/fixes in one commit)
-2. **Single feature with significant changes** that benefit from breakdown explanation
+
+Used when there are multiple truly unrelated functional changes:
 
 ```
-
 feat: add user management and notification system
 
 - Implement user CRUD operations with validation
 - Add email notification service for user events
 - Create admin dashboard for user management
-
-````
+```
 
 ### Supported Types
-- `feat`: A new feature
-- `fix`: A bug fix
-- `docs`: Documentation only changes
-- `style`: Code style changes (formatting, etc.)
-- `refactor`: Code changes that neither fix bugs nor add features
-- `perf`: Performance improvements
-- `test`: Adding or correcting tests
-- `chore`: Build process or auxiliary tool changes
+
+| Type | Description |
+|------|-------------|
+| `feat` | A new feature |
+| `fix` | A bug fix |
+| `docs` | Documentation only changes |
+| `style` | Code style changes (formatting, etc.) |
+| `refactor` | Code changes that neither fix bugs nor add features |
+| `perf` | Performance improvements |
+| `test` | Adding or correcting tests |
+| `chore` | Build process or auxiliary tool changes |
 
 ## Workflow Examples
 
 ### Initial Setup
-```bash
-# One-time setup
-export AI_COMMIT_ARK_API_KEY="your-api-key"
-ai-commit config init
 
-# Verify configuration
+```bash
+export AI_COMMIT_API_KEY="your-api-key"
+export AI_COMMIT_MODEL="your-model"
+ai-commit config init
 ai-commit config show
-````
+```
 
 ### Standard Workflow
 
 ```bash
-# Make changes to your code
 git add .
 ai-commit
 # Review generated message and confirm
@@ -299,7 +289,6 @@ ai-commit
 ### Amend Workflow
 
 ```bash
-# Make additional changes after last commit
 git add .
 ai-commit amend
 # Review generated message for combined changes
@@ -308,21 +297,26 @@ ai-commit amend
 ### Preview Changes
 
 ```bash
-# Check what message would be generated without committing
 git add .
 ai-commit --dry-run
 ```
 
-### Customization Workflow
+### Using a Different AI Provider
 
 ```bash
-# Edit configuration file
-ai-commit config show  # shows file location
-# Edit ~/.config/ai-commit/config.toml
+export AI_COMMIT_API_KEY="sk-..."
+export AI_COMMIT_MODEL="gpt-4o"
+export AI_COMMIT_ENDPOINT="https://api.openai.com/v1/chat/completions"
+ai-commit commit
+```
 
-# Test your changes
-git add .
-ai-commit --dry-run
+Or configure custom env var names in `config.toml`:
+
+```toml
+[env]
+api_key_env = "OPENAI_API_KEY"
+model_env = "OPENAI_MODEL"
+endpoint_env = "OPENAI_BASE_URL"
 ```
 
 ## Technical Details
@@ -331,32 +325,24 @@ ai-commit --dry-run
 
 - Analyzes git diffs to understand code changes
 - Filters out lock files and build artifacts automatically
-- Considers file types, change patterns, and modification scope
+- Supports glob-based custom ignore patterns
+- Enforces configurable context limit to prevent oversized API requests
 - Supports both staged and unstaged change analysis
 
 ### AI Integration
 
-- Uses advanced language models for commit message generation
-- Sends contextual diff information for accurate analysis
-- Respects token limits and context windows
-- Handles API errors gracefully with fallback messages
+- Compatible with any OpenAI-compatible chat completions API
+- API credentials managed through environment variables only (never stored in files)
+- HTTP connection timeout (10s connect, 60s total)
+- Handles API errors gracefully with proper exit codes
 - Supports fully customizable prompts for different commit styles
-
-### Configuration Management
-
-- XDG Base Directory specification compliant (`~/.config/ai-commit/`)
-- TOML format for easy editing and version control
-- Environment variable support for API keys
-- Fallback to sensible defaults if configuration is missing
-- Hot-reload of configuration changes without restart
 
 ### Security
 
+- API keys read from environment variables, never written to config files
+- `config show` displays env var names only, never actual values
 - Works with GPG-signed commits
 - Respects git configuration settings
-- No code or sensitive information stored externally
-- API keys managed through environment variables only
-- Local configuration files with proper permissions
 
 ## Contributing
 
@@ -365,7 +351,6 @@ Contributions are welcome! Please feel free to:
 - Submit bug reports and feature requests through issues
 - Create pull requests for improvements
 - Share feedback and suggestions
-- Help improve documentation
 
 ### Development Setup
 
@@ -373,6 +358,7 @@ Contributions are welcome! Please feel free to:
 git clone <repository-url>
 cd ai-commit
 cargo test
+cargo clippy
 cargo run -- --help
 ```
 

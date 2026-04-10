@@ -3,31 +3,39 @@ use colored::*;
 use std::io::{self, Write};
 
 use crate::ai::AiClient;
+use crate::config::{ApiConfig, AppConfig};
 use crate::git::{execute_commit_with_cli, get_staged_diff, get_unstaged_diff};
 
-pub async fn handle_commit(keywords: Option<&str>) -> Result<()> {
-    let ai_client = AiClient::new();
+pub async fn handle_commit(keywords: Option<&str>, dry_run: bool, context_limit: Option<usize>) -> Result<()> {
+    let app_config = AppConfig::load_or_create()?;
+    let api_config = ApiConfig::from_env(&app_config.env)?;
+    let ai_client = AiClient::new(api_config);
 
-    let staged_diff = get_staged_diff()?;
-    let unstaged_diff = get_unstaged_diff()?;
+    let staged_diff = get_staged_diff(Some(&app_config.commit))?;
+    let unstaged_diff = get_unstaged_diff(Some(&app_config.commit))?;
 
-    let (diff_content, is_dry_run) = if !staged_diff.is_empty() {
-        println!("{}", "✅ Staged changes found. Generating commit message...".green());
+    let limit = context_limit.unwrap_or(app_config.commit.context_limit);
+
+    let (diff_content, auto_dry_run) = if !staged_diff.is_empty() {
+        println!("{}", "Staged changes found. Generating commit message...".green());
         (staged_diff, false)
     } else if !unstaged_diff.is_empty() {
-        println!("{}", "⚠️ No staged changes found, but found unstaged changes.".yellow());
+        println!("{}", "No staged changes found, but found unstaged changes.".yellow());
         println!("{}", "Running in dry-run mode (no actual commit will be made).".yellow());
         println!("{}", "To commit these changes, please stage them first with 'git add'.".yellow());
         (unstaged_diff, true)
     } else {
-        println!("{}", "❌ No changes found to commit.".red());
+        println!("{}", "No changes found to commit.".red());
         return Ok(());
     };
 
+    let is_dry_run = dry_run || auto_dry_run;
+    let diff_content = truncate_diff(&diff_content, limit);
+
     if let Some(kw) = keywords {
-        println!("{}", format!("📝 Using keywords: {}", kw).cyan());
+        println!("{}", format!("Using keywords: {}", kw).cyan());
     }
-    println!("{}", "🤖 Generating commit message using AI service...".cyan());
+    println!("{}", "Generating commit message using AI service...".cyan());
 
     let result = if let Some(kw) = keywords {
         ai_client.generate_commit_message_with_keywords(&diff_content, kw).await
@@ -38,30 +46,26 @@ pub async fn handle_commit(keywords: Option<&str>) -> Result<()> {
     match result {
         Ok(message) => {
             if message.is_empty() {
-                println!("{}", "❌ AI did not generate a commit message.".red());
+                println!("{}", "AI did not generate a commit message.".red());
                 return Ok(());
             }
 
-            println!("{}", "✨ Generated commit message:".bright_cyan().bold());
+            println!("{}", "Generated commit message:".bright_cyan().bold());
             println!("{}", "─────────────────────".bright_blue());
             println!("{}", message.bright_green().bold());
             println!("{}", "─────────────────────".bright_blue());
 
             if is_dry_run {
                 println!("{}", "(Dry run mode - no actual commit made)".yellow());
-                println!("{}", "To commit these changes:".yellow());
-                println!("{}", "1. Stage your changes: git add <files>".yellow());
-                println!("{}", "2. Run ai-commit again".yellow());
-            } else {
-                if !confirm_commit()? {
-                    println!("{}", "❌ Commit cancelled.".red());
-                    return Ok(());
-                }
+            } else if app_config.commit.auto_confirm || confirm_commit()? {
                 execute_commit_with_cli(&message)?;
+            } else {
+                println!("{}", "Commit cancelled.".red());
             }
         }
         Err(e) => {
-            println!("{}", format!("❌ Failed to generate commit message 3: {e}").red());
+            eprintln!("Failed to generate commit message: {e}");
+            return Err(e);
         }
     };
 
@@ -76,4 +80,17 @@ fn confirm_commit() -> Result<bool> {
     io::stdin().read_line(&mut input)?;
 
     Ok(matches!(input.trim().to_lowercase().as_str(), "y" | "yes"))
+}
+
+fn truncate_diff(diff: &str, limit: usize) -> String {
+    if diff.len() <= limit {
+        return diff.to_string();
+    }
+
+    let mut end = limit;
+    while end > 0 && diff.as_bytes()[end - 1] != b'\n' {
+        end -= 1;
+    }
+
+    format!("{}\n\n[... diff truncated: {}/{} characters ...]", &diff[..end], limit, diff.len())
 }

@@ -1,6 +1,6 @@
 #![warn(clippy::style, clippy::complexity, clippy::perf, clippy::correctness)]
 
-use ai_commit::commands::{amend, commit, execute_command};
+use ai_commit::commands::{amend, commit, config, install, uninstall};
 use anyhow::Result;
 use clap::{Arg, Command};
 
@@ -30,7 +30,7 @@ async fn main() -> Result<()> {
                     Arg::new("context-limit")
                         .long("context-limit")
                         .value_name("CHARS")
-                        .help("Maximum characters to send to AI (default: 200000)")
+                        .help("Maximum characters to send to AI (default: from config)")
                         .value_parser(clap::value_parser!(usize)),
                 )
                 .arg(
@@ -54,7 +54,7 @@ async fn main() -> Result<()> {
                     Arg::new("context-limit")
                         .long("context-limit")
                         .value_name("CHARS")
-                        .help("Maximum characters to send to AI (default: 200000)")
+                        .help("Maximum characters to send to AI (default: from config)")
                         .value_parser(clap::value_parser!(usize)),
                 )
                 .arg(
@@ -80,33 +80,36 @@ async fn main() -> Result<()> {
         )
         .get_matches();
 
-    let command = match matches.subcommand() {
-        Some(("install", _)) => "install",
-        Some(("uninstall", _)) => "uninstall",
+    match matches.subcommand() {
+        Some(("install", _)) => install::install_hook(),
+        Some(("uninstall", _)) => uninstall::uninstall_hook(),
         Some(("amend", sub_matches)) => {
             let keywords = sub_matches.get_one::<String>("keywords").map(|s| s.as_str());
-            return amend::handle_amend(keywords).await;
+            let dry_run = sub_matches.get_flag("dry-run");
+            let context_limit = sub_matches.get_one::<usize>("context-limit").copied();
+            amend::handle_amend(keywords, dry_run, context_limit).await
         }
         Some(("commit", sub_matches)) => {
             let keywords = sub_matches.get_one::<String>("keywords").map(|s| s.as_str());
-            return commit::handle_commit(keywords).await;
+            let dry_run = sub_matches.get_flag("dry-run");
+            let context_limit = sub_matches.get_one::<usize>("context-limit").copied();
+            commit::handle_commit(keywords, dry_run, context_limit).await
         }
         Some(("config", sub_matches)) => match sub_matches.subcommand() {
-            Some(("show", _)) => "config-show",
-            Some(("init", _)) => "config-init",
-            Some(("edit-prompts", _)) => "config-edit-prompts",
-            _ => "config-show",
+            Some(("show", _)) => config::show_config(),
+            Some(("init", _)) => config::init_config(),
+            Some(("edit-prompts", _)) => config::edit_prompts_help(),
+            _ => config::show_config(),
         },
         Some((_, sub_matches)) => {
             let keywords = sub_matches.get_one::<String>("keywords").map(|s| s.as_str());
-            return commit::handle_commit(keywords).await;
+            let dry_run = sub_matches.get_flag("dry-run");
+            let context_limit = sub_matches.get_one::<usize>("context-limit").copied();
+            commit::handle_commit(keywords, dry_run, context_limit).await
         }
         _ => {
-            // Default to executing the commit command, supporting the top-level -k parameter
             let keywords = matches.get_one::<String>("keywords").map(|s| s.as_str());
-            return commit::handle_commit(keywords).await;
+            commit::handle_commit(keywords, false, None).await
         }
-    };
-
-    execute_command(command).await
+    }
 }

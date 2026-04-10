@@ -3,39 +3,44 @@ use colored::*;
 use std::io::{self, Write};
 
 use crate::ai::AiClient;
+use crate::config::{ApiConfig, AppConfig};
 use crate::git::{execute_amend_with_cli, get_amend_diff, get_last_commit_message, get_staged_diff};
 
-pub async fn handle_amend(keywords: Option<&str>) -> Result<()> {
-    let ai_client = AiClient::new();
+pub async fn handle_amend(keywords: Option<&str>, dry_run: bool, context_limit: Option<usize>) -> Result<()> {
+    let app_config = AppConfig::load_or_create()?;
+    let api_config = ApiConfig::from_env(&app_config.env)?;
+    let ai_client = AiClient::new(api_config);
 
-    // 检查是否有staged changes或者需要amend
-    let staged_diff = get_staged_diff()?;
-    let amend_diff = get_amend_diff()?;
+    let staged_diff = get_staged_diff(Some(&app_config.commit))?;
+    let amend_diff = get_amend_diff(Some(&app_config.commit))?;
     let last_commit_msg = get_last_commit_message()?;
 
     let diff_content = if !staged_diff.is_empty() {
-        println!("{}", "✅ Found staged changes to amend.".green());
+        println!("{}", "Found staged changes to amend.".green());
         amend_diff
     } else {
-        println!("{}", "⚠️  No staged changes found.".yellow());
+        println!("{}", "No staged changes found.".yellow());
         println!("{}", "Will generate new message for existing commit content.".yellow());
         amend_diff
     };
 
     if diff_content.is_empty() {
-        println!("{}", "❌ No changes found to amend.".red());
+        println!("{}", "No changes found to amend.".red());
         return Ok(());
     }
 
-    println!("{}", "📝 Current commit message:".bright_blue().bold());
+    let limit = context_limit.unwrap_or(app_config.commit.context_limit);
+    let diff_content = truncate_diff(&diff_content, limit);
+
+    println!("{}", "Current commit message:".bright_blue().bold());
     println!("{}", "─────────────────────".bright_blue());
     println!("{}", last_commit_msg.trim().bright_yellow());
     println!("{}", "─────────────────────".bright_blue());
 
     if let Some(kw) = keywords {
-        println!("{}", format!("📝 Using keywords: {}", kw).cyan());
+        println!("{}", format!("Using keywords: {}", kw).cyan());
     }
-    println!("{}", "🤖 Generating new commit message using AI service...".cyan());
+    println!("{}", "Generating new commit message using AI service...".cyan());
 
     let result = if let Some(kw) = keywords {
         ai_client.generate_commit_message_with_keywords(&diff_content, kw).await
@@ -46,92 +51,26 @@ pub async fn handle_amend(keywords: Option<&str>) -> Result<()> {
     match result {
         Ok(message) => {
             if message.is_empty() {
-                println!("{}", "❌ AI did not generate a commit message.".red());
+                println!("{}", "AI did not generate a commit message.".red());
                 return Ok(());
             }
 
-            println!("{}", "✨ Generated new commit message:".bright_cyan().bold());
-            println!("{}", "─────────────────────".bright_blue());
-            println!("{}", message.bright_green().bold());
-            println!("{}", "─────────────────────".bright_blue());
-
-            if !confirm_amend()? {
-                println!("{}", "❌ Amend cancelled.".red());
-                return Ok(());
-            }
-
-            execute_amend_with_cli(&message)?;
-        }
-        Err(e) => {
-            println!("{}", format!("❌ Failed to generate commit message 1: {e}").red());
-        }
-    };
-
-    Ok(())
-}
-
-pub async fn handle_amend_with_options(dry_run: bool, keywords: Option<&str>) -> Result<()> {
-    let ai_client = AiClient::new();
-
-    let staged_diff = get_staged_diff()?;
-    let amend_diff = get_amend_diff()?;
-    let last_commit_msg = get_last_commit_message()?;
-
-    let diff_content = if !staged_diff.is_empty() {
-        println!("{}", "✅ Found staged changes to amend.".green());
-        amend_diff
-    } else {
-        println!("{}", "⚠️  No staged changes found.".yellow());
-        println!("{}", "Will generate new message for existing commit content.".yellow());
-        amend_diff
-    };
-
-    if diff_content.is_empty() {
-        println!("{}", "❌ No changes found to amend.".red());
-        return Ok(());
-    }
-
-    println!("{}", "📝 Current commit message:".bright_blue().bold());
-    println!("{}", "─────────────────────".bright_blue());
-    println!("{}", last_commit_msg.trim().bright_yellow());
-    println!("{}", "─────────────────────".bright_blue());
-
-    if let Some(kw) = keywords {
-        println!("{}", format!("📝 Using keywords: {}", kw).cyan());
-    }
-    println!("{}", "🤖 Generating new commit message using AI service...".cyan());
-
-    let result = if let Some(kw) = keywords {
-        ai_client.generate_commit_message_with_keywords(&diff_content, kw).await
-    } else {
-        ai_client.generate_commit_message(&diff_content).await
-    };
-
-    match result {
-        Ok(message) => {
-            if message.is_empty() {
-                println!("{}", "❌ AI did not generate a commit message.".red());
-                return Ok(());
-            }
-
-            println!("{}", "✨ Generated new commit message:".bright_cyan().bold());
+            println!("{}", "Generated new commit message:".bright_cyan().bold());
             println!("{}", "─────────────────────".bright_blue());
             println!("{}", message.bright_green().bold());
             println!("{}", "─────────────────────".bright_blue());
 
             if dry_run {
                 println!("{}", "(Dry run mode - no actual amend made)".yellow());
-                println!("{}", "To amend: git commit --amend -m \"<message>\"".yellow());
-            } else {
-                if !confirm_amend()? {
-                    println!("{}", "❌ Amend cancelled.".red());
-                    return Ok(());
-                }
+            } else if app_config.commit.auto_confirm || confirm_amend()? {
                 execute_amend_with_cli(&message)?;
+            } else {
+                println!("{}", "Amend cancelled.".red());
             }
         }
         Err(e) => {
-            println!("{}", format!("❌ Failed to generate commit message 2: {e}").red());
+            eprintln!("Failed to generate commit message: {e}");
+            return Err(e);
         }
     };
 
@@ -146,4 +85,17 @@ fn confirm_amend() -> Result<bool> {
     io::stdin().read_line(&mut input)?;
 
     Ok(matches!(input.trim().to_lowercase().as_str(), "y" | "yes"))
+}
+
+fn truncate_diff(diff: &str, limit: usize) -> String {
+    if diff.len() <= limit {
+        return diff.to_string();
+    }
+
+    let mut end = limit;
+    while end > 0 && diff.as_bytes()[end - 1] != b'\n' {
+        end -= 1;
+    }
+
+    format!("{}\n\n[... diff truncated: {}/{} characters ...]", &diff[..end], limit, diff.len())
 }
