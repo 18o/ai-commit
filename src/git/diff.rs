@@ -126,7 +126,7 @@ pub fn get_last_commit_message() -> Result<String> {
     Ok(head_commit.message().unwrap_or("").to_string())
 }
 
-pub fn truncate_diff(diff: &str, limit: usize) -> String {
+pub fn get_truncated_diff(diff: &str, limit: usize) -> String {
     if diff.len() <= limit {
         return diff.to_string();
     }
@@ -142,7 +142,7 @@ pub fn truncate_diff(diff: &str, limit: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
+    use std::path::Path;
 
     #[test]
     fn test_should_ignore_file_lock_files() {
@@ -179,19 +179,19 @@ mod tests {
     #[test]
     fn test_truncate_diff_within_limit() {
         let diff = "some diff content";
-        assert_eq!(truncate_diff(diff, 100), diff);
+        assert_eq!(get_truncated_diff(diff, 100), diff);
     }
 
     #[test]
     fn test_truncate_diff_exceeds_limit() {
         let diff = "line1\nline2\nline3\nline4\nline5\n";
-        let result = truncate_diff(diff, 12);
+        let result = get_truncated_diff(diff, 12);
         assert!(result.contains("diff truncated"));
         assert!(result.starts_with("line1\nline2\n"));
     }
 
     #[test]
     fn test_truncate_diff_empty() {
-        assert_eq!(truncate_diff("", 100), "");
+        assert_eq!(get_truncated_diff("", 100), "");
     }
 }

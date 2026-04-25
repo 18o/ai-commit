@@ -4,12 +4,22 @@ use std::io::{self, Write};
 
 use crate::ai::AiClient;
 use crate::config::{ApiConfig, AppConfig};
-use crate::git::{execute_amend_with_cli, get_amend_diff, get_last_commit_message, get_staged_diff};
+use crate::git::{
+    execute_amend_with_cli, get_amend_diff, get_last_commit_message, get_staged_diff, get_truncated_diff,
+};
 
-pub async fn handle_amend(keywords: Option<&str>, dry_run: bool, context_limit: Option<usize>) -> Result<()> {
+pub async fn handle_amend(
+    keywords: Option<&str>,
+    dry_run: bool,
+    context_limit: Option<usize>,
+) -> Result<()> {
     let app_config = AppConfig::load_or_create()?;
     let api_config = ApiConfig::from_env(&app_config.env)?;
-    let ai_client = AiClient::new(api_config);
+    let ai_client = AiClient::new(
+        api_config,
+        app_config.prompts.system_prompt.clone(),
+        app_config.prompts.user_prompt_template.clone(),
+    )?;
 
     let staged_diff = get_staged_diff(Some(&app_config.commit))?;
     let amend_diff = get_amend_diff(Some(&app_config.commit))?;
@@ -30,7 +40,7 @@ pub async fn handle_amend(keywords: Option<&str>, dry_run: bool, context_limit: 
     }
 
     let limit = context_limit.unwrap_or(app_config.commit.context_limit);
-    let diff_content = truncate_diff(&diff_content, limit);
+    let diff_content = get_truncated_diff(&diff_content, limit);
 
     println!("{}", "Current commit message:".bright_blue().bold());
     println!("{}", "─────────────────────".bright_blue());
@@ -38,7 +48,7 @@ pub async fn handle_amend(keywords: Option<&str>, dry_run: bool, context_limit: 
     println!("{}", "─────────────────────".bright_blue());
 
     if let Some(kw) = keywords {
-        println!("{}", format!("Using keywords: {}", kw).cyan());
+        println!("{}", format!("Using keywords: {kw}").cyan());
     }
     println!("{}", "Generating new commit message using AI service...".cyan());
 
@@ -50,11 +60,6 @@ pub async fn handle_amend(keywords: Option<&str>, dry_run: bool, context_limit: 
 
     match result {
         Ok(message) => {
-            if message.is_empty() {
-                println!("{}", "AI did not generate a commit message.".red());
-                return Ok(());
-            }
-
             println!("{}", "Generated new commit message:".bright_cyan().bold());
             println!("{}", "─────────────────────".bright_blue());
             println!("{}", message.bright_green().bold());
@@ -69,7 +74,7 @@ pub async fn handle_amend(keywords: Option<&str>, dry_run: bool, context_limit: 
             }
         }
         Err(e) => {
-            eprintln!("Failed to generate commit message: {e}");
+            eprintln!("{} {e}", "Failed to generate commit message:".red());
             return Err(e);
         }
     };
@@ -85,17 +90,4 @@ fn confirm_amend() -> Result<bool> {
     io::stdin().read_line(&mut input)?;
 
     Ok(matches!(input.trim().to_lowercase().as_str(), "y" | "yes"))
-}
-
-fn truncate_diff(diff: &str, limit: usize) -> String {
-    if diff.len() <= limit {
-        return diff.to_string();
-    }
-
-    let mut end = limit;
-    while end > 0 && diff.as_bytes()[end - 1] != b'\n' {
-        end -= 1;
-    }
-
-    format!("{}\n\n[... diff truncated: {}/{} characters ...]", &diff[..end], limit, diff.len())
 }
