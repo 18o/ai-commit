@@ -1,5 +1,5 @@
 use anyhow::Result;
-use git2::{DiffOptions, Repository};
+use git2::{DiffLineType, DiffOptions, Repository};
 use std::path::Path;
 use std::str;
 
@@ -54,6 +54,9 @@ fn format_diff(diff: git2::Diff, commit_config: Option<&CommitConfig>) -> Result
         }
 
         if let Ok(content) = str::from_utf8(line.content()) {
+            if matches!(line.origin_value(), DiffLineType::Context | DiffLineType::Addition | DiffLineType::Deletion) {
+                diff_content.push(line.origin());
+            }
             diff_content.push_str(content);
         }
         true
