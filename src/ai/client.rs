@@ -48,11 +48,7 @@ pub struct AiClient {
 }
 
 impl AiClient {
-    pub fn new(
-        config: ApiConfig,
-        system_prompt: String,
-        user_prompt_template: String,
-    ) -> anyhow::Result<Self> {
+    pub fn new(config: ApiConfig, system_prompt: String, user_prompt_template: String) -> anyhow::Result<Self> {
         let client = Client::builder()
             .connect_timeout(Duration::from_secs(10))
             .timeout(Duration::from_secs(60))
@@ -95,9 +91,7 @@ impl AiClient {
             Ok(r) => r,
             Err(e) => {
                 error!("Failed to parse API response: {e}. Raw response: {response_text}");
-                anyhow::bail!(
-                    "Failed to parse API response: {e}. Run with RUST_LOG=debug to see the raw response."
-                );
+                anyhow::bail!("Failed to parse API response: {e}. Run with RUST_LOG=debug to see the raw response.");
             }
         };
 
@@ -116,17 +110,14 @@ impl AiClient {
         };
 
         if message.trim().is_empty() {
-            anyhow::bail!(
-                "AI returned an empty response. This can happen with reasoning models or content filters."
-            );
+            anyhow::bail!("AI returned an empty response. This can happen with reasoning models or content filters.");
         }
 
         Ok(message)
     }
 
     pub async fn generate_commit_message(&self, diff: &str) -> anyhow::Result<String> {
-        let system_message =
-            Message { role: "system".to_string(), content: self.system_prompt.clone() };
+        let system_message = Message { role: "system".to_string(), content: self.system_prompt.clone() };
         let user_content = self.user_prompt_template.replace("{diff}", diff);
         let user_message = Message { role: "user".to_string(), content: user_content };
         let messages = vec![system_message, user_message];
@@ -134,13 +125,8 @@ impl AiClient {
         self.send_chat_request(messages).await
     }
 
-    pub async fn generate_commit_message_with_keywords(
-        &self,
-        diff: &str,
-        keywords: &str,
-    ) -> anyhow::Result<String> {
-        let system_message =
-            Message { role: "system".to_string(), content: self.system_prompt.clone() };
+    pub async fn generate_commit_message_with_keywords(&self, diff: &str, keywords: &str) -> anyhow::Result<String> {
+        let system_message = Message { role: "system".to_string(), content: self.system_prompt.clone() };
         let user_content = format!(
             "Based on the following git diff, generate a commit message.\n\n\
              User provided keywords/context: {keywords}\n\n\
