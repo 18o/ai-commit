@@ -8,11 +8,7 @@ use crate::git::{
     execute_amend_with_cli, get_amend_diff, get_last_commit_message, get_staged_diff, get_truncated_diff,
 };
 
-pub async fn handle_amend(
-    keywords: Option<&str>,
-    dry_run: bool,
-    context_limit: Option<usize>,
-) -> Result<()> {
+pub async fn handle_amend(keywords: Option<&str>, dry_run: bool, context_limit: Option<usize>) -> Result<()> {
     let app_config = AppConfig::load_or_create()?;
     let api_config = ApiConfig::from_env(&app_config.env)?;
     let ai_client = AiClient::new(

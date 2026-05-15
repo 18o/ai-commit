@@ -6,11 +6,7 @@ use crate::ai::AiClient;
 use crate::config::{ApiConfig, AppConfig};
 use crate::git::{execute_commit_with_cli, get_staged_diff, get_truncated_diff, get_unstaged_diff};
 
-pub async fn handle_commit(
-    keywords: Option<&str>,
-    dry_run: bool,
-    context_limit: Option<usize>,
-) -> Result<()> {
+pub async fn handle_commit(keywords: Option<&str>, dry_run: bool, context_limit: Option<usize>) -> Result<()> {
     let app_config = AppConfig::load_or_create()?;
     let api_config = ApiConfig::from_env(&app_config.env)?;
     let ai_client = AiClient::new(

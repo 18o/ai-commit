@@ -22,12 +22,10 @@ struct ChatRequest {
 
 /// API 响应中的 message 对象。
 /// `content` 使用 `#[serde(default)]` 以兼容 `null`（某些 API 在无内容时返回 null）。
-/// `reasoning_content` 用于 DeepSeek R1 等推理模型，回答可能放在此字段。
 #[derive(Deserialize, Debug)]
 struct ChatMessage {
     #[serde(default)]
     content: String,
-    reasoning_content: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -40,6 +38,32 @@ struct ChatResponse {
     choices: Vec<Choice>,
 }
 
+/// 从推理模型响应中剥离 `<think` 思考内容。
+///
+/// DeepSeek R1 等模型会在 `content` 字段中嵌入 `<think` 思考过程，
+/// 实际回答位于闭合标签 `</think` 之后。
+fn strip_thinking_content(content: &str) -> String {
+    let trimmed = content.trim();
+    let lower = trimmed.to_lowercase();
+
+    // 查找最后一个 </think 闭合标签，取其后的内容
+    if let Some(pos) = lower.rfind("</think")
+        && let Some(gt_pos) = trimmed[pos..].find('>')
+    {
+        let after_tag = trimmed[pos + gt_pos + 1..].trim();
+        if !after_tag.is_empty() {
+            return after_tag.to_string();
+        }
+    }
+
+    // 以 <think 开头但没有闭合标签 → 全部是思考过程
+    if lower.starts_with("<think") {
+        return String::new();
+    }
+
+    trimmed.to_string()
+}
+
 pub struct AiClient {
     client: Client,
     config: ApiConfig,
@@ -48,11 +72,7 @@ pub struct AiClient {
 }
 
 impl AiClient {
-    pub fn new(
-        config: ApiConfig,
-        system_prompt: String,
-        user_prompt_template: String,
-    ) -> anyhow::Result<Self> {
+    pub fn new(config: ApiConfig, system_prompt: String, user_prompt_template: String) -> anyhow::Result<Self> {
         let client = Client::builder()
             .connect_timeout(Duration::from_secs(10))
             .timeout(Duration::from_secs(60))
@@ -95,9 +115,7 @@ impl AiClient {
             Ok(r) => r,
             Err(e) => {
                 error!("Failed to parse API response: {e}. Raw response: {response_text}");
-                anyhow::bail!(
-                    "Failed to parse API response: {e}. Run with RUST_LOG=debug to see the raw response."
-                );
+                anyhow::bail!("Failed to parse API response: {e}. Run with RUST_LOG=debug to see the raw response.");
             }
         };
 
@@ -108,16 +126,12 @@ impl AiClient {
             .ok_or_else(|| anyhow::anyhow!("API returned empty choices — the request may have been filtered"))?;
 
         let content = choice.message.content;
-        let message = if content.trim().is_empty() {
-            // DeepSeek R1 等推理模型可能把回答放在 reasoning_content，content 为空
-            choice.message.reasoning_content.unwrap_or(content)
-        } else {
-            content
-        };
+        let message = strip_thinking_content(&content);
 
         if message.trim().is_empty() {
             anyhow::bail!(
-                "AI returned an empty response. This can happen with reasoning models or content filters."
+                "AI returned an empty response after stripping thinking content. \
+                 The model may have produced only reasoning without a final answer."
             );
         }
 
@@ -125,8 +139,7 @@ impl AiClient {
     }
 
     pub async fn generate_commit_message(&self, diff: &str) -> anyhow::Result<String> {
-        let system_message =
-            Message { role: "system".to_string(), content: self.system_prompt.clone() };
+        let system_message = Message { role: "system".to_string(), content: self.system_prompt.clone() };
         let user_content = self.user_prompt_template.replace("{diff}", diff);
         let user_message = Message { role: "user".to_string(), content: user_content };
         let messages = vec![system_message, user_message];
@@ -134,13 +147,8 @@ impl AiClient {
         self.send_chat_request(messages).await
     }
 
-    pub async fn generate_commit_message_with_keywords(
-        &self,
-        diff: &str,
-        keywords: &str,
-    ) -> anyhow::Result<String> {
-        let system_message =
-            Message { role: "system".to_string(), content: self.system_prompt.clone() };
+    pub async fn generate_commit_message_with_keywords(&self, diff: &str, keywords: &str) -> anyhow::Result<String> {
+        let system_message = Message { role: "system".to_string(), content: self.system_prompt.clone() };
         let user_content = format!(
             "Based on the following git diff, generate a commit message.\n\n\
              User provided keywords/context: {keywords}\n\n\
@@ -155,5 +163,52 @@ impl AiClient {
         let messages = vec![system_message, user_message];
         debug!("Sending messages: {messages:?}");
         self.send_chat_request(messages).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_strip_thinking_with_tag() {
+        let content = "<think >Some thinking\nMultiple lines\n</think >feat: add new feature";
+        assert_eq!(strip_thinking_content(content), "feat: add new feature");
+    }
+
+    #[test]
+    fn test_strip_thinking_unclosed_tag() {
+        let content = "<think >Some thinking without closing tag";
+        assert_eq!(strip_thinking_content(content), "");
+    }
+
+    #[test]
+    fn test_strip_thinking_no_tag() {
+        let content = "feat: add new feature";
+        assert_eq!(strip_thinking_content(content), "feat: add new feature");
+    }
+
+    #[test]
+    fn test_strip_thinking_empty_after_tag() {
+        let content = "<think >thinking</think >";
+        assert_eq!(strip_thinking_content(content), "");
+    }
+
+    #[test]
+    fn test_strip_thinking_whitespace_after_tag() {
+        let content = "<think >thinking</think >   \n  feat: fix bug  ";
+        assert_eq!(strip_thinking_content(content), "feat: fix bug");
+    }
+
+    #[test]
+    fn test_strip_thinking_case_insensitive() {
+        let content = "<THINK >thinking</THINK >feat: add feature";
+        assert_eq!(strip_thinking_content(content), "feat: add feature");
+    }
+
+    #[test]
+    fn test_strip_thinking_multiline() {
+        let content = "<think >\nLine 1\nLine 2\n</think >\n\nfeat: add feature\n";
+        assert_eq!(strip_thinking_content(content), "feat: add feature");
     }
 }
