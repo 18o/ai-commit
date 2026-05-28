@@ -24,6 +24,10 @@ pub struct EnvConfig {
     pub api_key_env: String,
     #[serde(default = "default_model_env")]
     pub model_env: String,
+    #[serde(default = "default_max_tokens_env")]
+    pub max_tokens_env: String,
+    #[serde(default = "default_temperature_env")]
+    pub temperature_env: String,
 }
 
 fn default_endpoint_env() -> String {
@@ -34,6 +38,12 @@ fn default_api_key_env() -> String {
 }
 fn default_model_env() -> String {
     "AI_COMMIT_MODEL".into()
+}
+fn default_max_tokens_env() -> String {
+    "AI_COMMIT_MAX_TOKENS".into()
+}
+fn default_temperature_env() -> String {
+    "AI_COMMIT_TEMPERATURE".into()
 }
 
 pub struct ApiConfig {
@@ -52,8 +62,12 @@ impl ApiConfig {
             .map_err(|_| anyhow::anyhow!("API key not found. Set {} environment variable", env_config.api_key_env))?;
         let model = std::env::var(&env_config.model_env)
             .map_err(|_| anyhow::anyhow!("Model not found. Set {} environment variable", env_config.model_env))?;
+        let max_tokens =
+            std::env::var(&env_config.max_tokens_env).ok().and_then(|v| v.parse::<usize>().ok()).unwrap_or(4096);
+        let temperature =
+            std::env::var(&env_config.temperature_env).ok().and_then(|v| v.parse::<f32>().ok()).unwrap_or(0.7);
 
-        Ok(Self { endpoint, api_key, model, max_tokens: Some(1000), temperature: Some(0.7) })
+        Ok(Self { endpoint, api_key, model, max_tokens: Some(max_tokens), temperature: Some(temperature) })
     }
 }
 
@@ -79,7 +93,7 @@ fn default_true() -> bool {
     true
 }
 fn default_context_limit() -> usize {
-    200000
+    800000
 }
 
 impl Default for CommitConfig {
@@ -90,7 +104,7 @@ impl Default for CommitConfig {
             gpg_sign: None,
             ignore_lock_files: true,
             custom_ignore_patterns: Vec::new(),
-            context_limit: 200000,
+            context_limit: 800000,
         }
     }
 }
@@ -160,6 +174,8 @@ impl Default for EnvConfig {
             endpoint_env: default_endpoint_env(),
             api_key_env: default_api_key_env(),
             model_env: default_model_env(),
+            max_tokens_env: default_max_tokens_env(),
+            temperature_env: default_temperature_env(),
         }
     }
 }
@@ -217,7 +233,7 @@ mod tests {
         let config = AppConfig::default();
         assert!(config.commit.ignore_lock_files);
         assert!(!config.commit.auto_confirm);
-        assert_eq!(config.commit.context_limit, 200000);
+        assert_eq!(config.commit.context_limit, 800000);
     }
 
     #[test]
@@ -226,6 +242,8 @@ mod tests {
         assert_eq!(env.endpoint_env, "AI_COMMIT_ENDPOINT");
         assert_eq!(env.api_key_env, "AI_COMMIT_API_KEY");
         assert_eq!(env.model_env, "AI_COMMIT_MODEL");
+        assert_eq!(env.max_tokens_env, "AI_COMMIT_MAX_TOKENS");
+        assert_eq!(env.temperature_env, "AI_COMMIT_TEMPERATURE");
     }
 
     #[test]
@@ -234,7 +252,7 @@ mod tests {
         assert!(!config.auto_confirm);
         assert!(config.ignore_lock_files);
         assert!(config.custom_ignore_patterns.is_empty());
-        assert_eq!(config.context_limit, 200000);
+        assert_eq!(config.context_limit, 800000);
     }
 
     #[test]

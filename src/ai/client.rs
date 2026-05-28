@@ -13,24 +13,37 @@ pub struct Message {
 }
 
 #[derive(Serialize, Debug)]
+struct ThinkingConfig {
+    r#type: String,
+}
+
+#[derive(Serialize, Debug)]
 struct ChatRequest {
     model: String,
     messages: Vec<Message>,
     max_tokens: Option<usize>,
     temperature: Option<f32>,
+    /// Disable thinking mode for simple tasks (commit messages).
+    /// DeepSeek V4 defaults to thinking mode which wastes tokens on reasoning.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    thinking: Option<ThinkingConfig>,
 }
 
 /// API 响应中的 message 对象。
-/// `content` 使用 `#[serde(default)]` 以兼容 `null`（某些 API 在无内容时返回 null）。
+/// - `content` uses `#[serde(default)]` for `null` compatibility.
+/// - `reasoning_content` is populated by DeepSeek V4 thinking mode (separate from content).
 #[derive(Deserialize, Debug)]
 struct ChatMessage {
     #[serde(default)]
     content: String,
+    #[serde(default)]
+    reasoning_content: Option<String>,
 }
 
 #[derive(Deserialize)]
 struct Choice {
     message: ChatMessage,
+    finish_reason: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -40,8 +53,11 @@ struct ChatResponse {
 
 /// 从推理模型响应中剥离 `<think` 思考内容。
 ///
-/// DeepSeek R1 等模型会在 `content` 字段中嵌入 `<think` 思考过程，
+/// DeepSeek R1 等旧模型会在 `content` 字段中嵌入 `<think` 思考过程，
 /// 实际回答位于闭合标签 `</think` 之后。
+///
+/// DeepSeek V4+ 将推理内容放在单独的 `reasoning_content` 字段，
+/// `content` 直接就是最终回答，无需剥离。
 fn strip_thinking_content(content: &str) -> String {
     let trimmed = content.trim();
     let lower = trimmed.to_lowercase();
@@ -75,18 +91,22 @@ impl AiClient {
     pub fn new(config: ApiConfig, system_prompt: String, user_prompt_template: String) -> anyhow::Result<Self> {
         let client = Client::builder()
             .connect_timeout(Duration::from_secs(10))
-            .timeout(Duration::from_secs(60))
+            .timeout(Duration::from_secs(120))
             .build()
             .context("Failed to build HTTP client — TLS backend initialization error")?;
         Ok(AiClient { client, config, system_prompt, user_prompt_template })
     }
 
     pub async fn send_chat_request(&self, messages: Vec<Message>) -> anyhow::Result<String> {
+        // Disable thinking mode — commit message generation doesn't need reasoning.
+        // DeepSeek V4 defaults to thinking mode which can consume all max_tokens on
+        // reasoning alone (finish_reason=length, 0 content tokens).
         let request = ChatRequest {
             model: self.config.model.clone(),
             messages,
             max_tokens: self.config.max_tokens,
             temperature: self.config.temperature,
+            thinking: Some(ThinkingConfig { r#type: "disabled".to_string() }),
         };
 
         debug!("Sending chat request to {}", self.config.endpoint);
@@ -125,10 +145,28 @@ impl AiClient {
             .next()
             .ok_or_else(|| anyhow::anyhow!("API returned empty choices — the request may have been filtered"))?;
 
+        if choice.finish_reason.as_deref() == Some("length") {
+            anyhow::bail!(
+                "AI response was truncated (finish_reason=length). \
+                 Consider increasing max_tokens (currently {:?}). \
+                 Set env var AI_COMMIT_MAX_TOKENS to a higher value.",
+                self.config.max_tokens
+            );
+        }
+
+        // DeepSeek V4 thinking mode: reasoning is in reasoning_content, content is the answer.
+        // Legacy models: reasoning is inline in content via <think/> tags.
         let content = choice.message.content;
         let message = strip_thinking_content(&content);
 
         if message.trim().is_empty() {
+            if choice.message.reasoning_content.is_some() {
+                anyhow::bail!(
+                    "AI produced only reasoning (reasoning_content present, content empty). \
+                     Thinking mode may not be fully disabled. \
+                     Try setting AI_COMMIT_MAX_TOKENS to a higher value."
+                );
+            }
             anyhow::bail!(
                 "AI returned an empty response after stripping thinking content. \
                  The model may have produced only reasoning without a final answer."

@@ -1,17 +1,17 @@
 [package]
 name = "ai-commit"
-version = "0.1.4"
+version = "0.1.5"
 edition = "2024"
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
 reqwest = { version = "0.13", features = ["json"] }
 tokio = { version = "1", features = ["full"] }
-git2 = "0.20"
+git2 = "0.21"
 anyhow = "1"
 colored = "3"
 clap = "4.6"
-toml = "1"
+toml = "1.1"
 dirs = "6.0"
 log = "0.4"
 env_logger = "0.11"
