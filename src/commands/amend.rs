@@ -8,14 +8,26 @@ use crate::git::{
     execute_amend_with_cli, get_amend_diff, get_last_commit_message, get_staged_diff, get_truncated_diff,
 };
 
-pub async fn handle_amend(keywords: Option<&str>, dry_run: bool, context_limit: Option<usize>) -> Result<()> {
+pub async fn handle_amend(
+    language: Option<&str>,
+    keywords: Option<&str>,
+    dry_run: bool,
+    context_limit: Option<usize>,
+) -> Result<()> {
     let app_config = AppConfig::load_or_create()?;
     let api_config = ApiConfig::from_env(&app_config.env)?;
-    let ai_client = AiClient::new(
-        api_config,
-        app_config.prompts.system_prompt.clone(),
-        app_config.prompts.user_prompt_template.clone(),
-    )?;
+
+    // Determine language: CLI arg > config file
+    let language = language.unwrap_or(app_config.commit.language.as_str());
+
+    // Select prompts based on language
+    let (system_prompt, user_prompt_template) = if language == "zh" {
+        (app_config.prompts.system_prompt_zh.clone(), app_config.prompts.user_prompt_template_zh.clone())
+    } else {
+        (app_config.prompts.system_prompt.clone(), app_config.prompts.user_prompt_template.clone())
+    };
+
+    let ai_client = AiClient::new(api_config, system_prompt, user_prompt_template)?;
 
     let staged_diff = get_staged_diff(Some(&app_config.commit))?;
     let amend_diff = get_amend_diff(Some(&app_config.commit))?;

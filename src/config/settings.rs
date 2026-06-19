@@ -84,6 +84,8 @@ pub struct CommitConfig {
     pub custom_ignore_patterns: Vec<String>,
     #[serde(default = "default_context_limit")]
     pub context_limit: usize,
+    #[serde(default = "default_language")]
+    pub language: String,
 }
 
 fn default_false() -> bool {
@@ -96,6 +98,10 @@ fn default_context_limit() -> usize {
     800000
 }
 
+fn default_language() -> String {
+    "en".to_string()
+}
+
 impl Default for CommitConfig {
     fn default() -> Self {
         Self {
@@ -105,6 +111,7 @@ impl Default for CommitConfig {
             ignore_lock_files: true,
             custom_ignore_patterns: Vec::new(),
             context_limit: 800000,
+            language: default_language(),
         }
     }
 }
@@ -121,8 +128,12 @@ pub struct HookConfig {
 pub struct PromptConfig {
     #[serde(default = "default_system_prompt")]
     pub system_prompt: String,
+    #[serde(default = "default_system_prompt_zh")]
+    pub system_prompt_zh: String,
     #[serde(default = "default_user_prompt_template")]
     pub user_prompt_template: String,
+    #[serde(default = "default_user_prompt_template_zh")]
+    pub user_prompt_template_zh: String,
 }
 
 fn default_system_prompt() -> String {
@@ -140,6 +151,8 @@ Generate concise, clear commit messages following the Conventional Commits speci
 
 Format: type(scope): description
 
+IMPORTANT: ALWAYS write the commit message in English, regardless of the language used in the diff content.
+
 PREFERRED FORMAT: Single line under 72 characters
 Use bullet points ONLY when there are truly MULTIPLE UNRELATED functional changes.
 
@@ -147,24 +160,85 @@ Default to single line. Only use bullets for truly unrelated changes."#
         .to_string()
 }
 
+fn default_system_prompt_zh() -> String {
+    r#"你是一位专业的软件开发工程师和 Git 提交信息编写专家。
+
+生成简洁、清晰的提交信息，遵循约定式提交规范。
+重要：提交信息必须使用中文编写，类型（type）部分可以使用英文。
+
+格式规范：
+- feat: 新功能
+- fix: 修复 bug
+- docs: 仅文档变更
+- style: 不影响代码含义的格式变更
+- refactor: 代码重构，既不修复 bug 也不添加新功能
+- perf: 性能优化
+- test: 添加或修正测试
+- chore: 构建过程或辅助工具的变更
+
+格式：类型(范围): 描述
+示例：
+- feat: 添加用户认证功能
+- fix: 修复登录超时问题
+- refactor: 优化错误处理逻辑
+
+首选格式：单行，不超过 72 个字符
+仅当存在多个完全不相关的功能变更时才使用多行（列表）格式。
+
+默认使用单行格式。只有在真正不相关的变更时才使用列表。
+
+严格要求：输出必须是中文提交信息（类型部分除外）。"#
+        .to_string()
+}
+
 fn default_user_prompt_template() -> String {
     r#"Analyze the following git diff and generate a commit message.
-
-IMPORTANT: Default to a single descriptive line under 72 characters.
-Only use bullet points if there are multiple COMPLETELY UNRELATED functional changes.
 
 Git diff:
 ```diff
 {diff}
 ```
 
-Provide only the commit message."#
+REQUIREMENTS (follow strictly):
+1. Write the commit message in English ONLY. Never use Chinese or any other language, even if the diff contains non-English text.
+2. Default to a single descriptive line under 72 characters.
+3. Only use bullet points if there are multiple COMPLETELY UNRELATED functional changes.
+
+Output ONLY the commit message, nothing else."#
+        .to_string()
+}
+
+fn default_user_prompt_template_zh() -> String {
+    r#"分析以下 git diff 并生成中文提交信息。
+
+重要要求：
+1. 提交信息描述部分必须使用中文
+2. 类型（type）可以使用英文，如 feat、fix 等
+3. 默认使用单行描述，不超过 72 个字符
+4. 仅当存在多个完全不相关的功能变更时才使用列表格式
+
+示例输出格式：
+- feat: 添加多语言支持
+- fix: 修复登录超时问题
+- refactor: 重构数据处理逻辑
+
+Git diff:
+```diff
+{diff}
+```
+
+请只输出中文提交信息，不要包含其他内容。"#
         .to_string()
 }
 
 impl Default for PromptConfig {
     fn default() -> Self {
-        Self { system_prompt: default_system_prompt(), user_prompt_template: default_user_prompt_template() }
+        Self {
+            system_prompt: default_system_prompt(),
+            system_prompt_zh: default_system_prompt_zh(),
+            user_prompt_template: default_user_prompt_template(),
+            user_prompt_template_zh: default_user_prompt_template_zh(),
+        }
     }
 }
 

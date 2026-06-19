@@ -3,6 +3,9 @@ version: "3"
 vars:
   GREETING: Hello, AI Commit!
 
+dotenv:
+  - .env
+
 tasks:
   default:
     cmd: task --list-all
@@ -10,7 +13,16 @@ tasks:
     cmds:
       - cargo build -r
       - cp /tmp/.cargo/target/release/ai-commit /opt/bin/ai-commit
+  clippy:
+    desc: fmt and clippy for rust codes
+    cmds:
+      - cargo fmt
+      - cargo clippy --all-targets
   commit:
     cmds:
       - git add .
       - ai-commit
+  hicode:
+    desc: run the application (uses env vars for model config)
+    cmds:
+      - hicode

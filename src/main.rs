@@ -14,6 +14,14 @@ async fn main() -> Result<()> {
         .subcommand_required(false)
         .arg_required_else_help(false)
         .arg(
+            Arg::new("language")
+                .short('l')
+                .long("language")
+                .value_name("LANGUAGE")
+                .value_parser(["en", "zh"])
+                .help("Language for commit messages (en/zh, implies 'commit' command)"),
+        )
+        .arg(
             Arg::new("keywords")
                 .short('k')
                 .long("keywords")
@@ -26,6 +34,14 @@ async fn main() -> Result<()> {
         .subcommand(
             Command::new("commit")
                 .about("Generate AI commit message for staged changes")
+                .arg(
+                    Arg::new("language")
+                        .short('l')
+                        .long("language")
+                        .value_name("LANGUAGE")
+                        .value_parser(["en", "zh"])
+                        .help("Language for commit messages (en/zh)"),
+                )
                 .arg(
                     Arg::new("context-limit")
                         .long("context-limit")
@@ -50,6 +66,14 @@ async fn main() -> Result<()> {
         .subcommand(
             Command::new("amend")
                 .about("Amend the last commit with staged changes using AI-generated message")
+                .arg(
+                    Arg::new("language")
+                        .short('l')
+                        .long("language")
+                        .value_name("LANGUAGE")
+                        .value_parser(["en", "zh"])
+                        .help("Language for commit messages (en/zh)"),
+                )
                 .arg(
                     Arg::new("context-limit")
                         .long("context-limit")
@@ -84,16 +108,18 @@ async fn main() -> Result<()> {
         Some(("install", _)) => install::install_hook(),
         Some(("uninstall", _)) => uninstall::uninstall_hook(),
         Some(("amend", sub_matches)) => {
+            let language = sub_matches.get_one::<String>("language").map(|s| s.as_str());
             let keywords = sub_matches.get_one::<String>("keywords").map(|s| s.as_str());
             let dry_run = sub_matches.get_flag("dry-run");
             let context_limit = sub_matches.get_one::<usize>("context-limit").copied();
-            amend::handle_amend(keywords, dry_run, context_limit).await
+            amend::handle_amend(language, keywords, dry_run, context_limit).await
         }
         Some(("commit", sub_matches)) => {
+            let language = sub_matches.get_one::<String>("language").map(|s| s.as_str());
             let keywords = sub_matches.get_one::<String>("keywords").map(|s| s.as_str());
             let dry_run = sub_matches.get_flag("dry-run");
             let context_limit = sub_matches.get_one::<usize>("context-limit").copied();
-            commit::handle_commit(keywords, dry_run, context_limit).await
+            commit::handle_commit(language, keywords, dry_run, context_limit).await
         }
         Some(("config", sub_matches)) => match sub_matches.subcommand() {
             Some(("show", _)) => config::show_config(),
@@ -102,14 +128,16 @@ async fn main() -> Result<()> {
             _ => config::show_config(),
         },
         Some((_, sub_matches)) => {
+            let language = sub_matches.get_one::<String>("language").map(|s| s.as_str());
             let keywords = sub_matches.get_one::<String>("keywords").map(|s| s.as_str());
             let dry_run = sub_matches.get_flag("dry-run");
             let context_limit = sub_matches.get_one::<usize>("context-limit").copied();
-            commit::handle_commit(keywords, dry_run, context_limit).await
+            commit::handle_commit(language, keywords, dry_run, context_limit).await
         }
         _ => {
+            let language = matches.get_one::<String>("language").map(|s| s.as_str());
             let keywords = matches.get_one::<String>("keywords").map(|s| s.as_str());
-            commit::handle_commit(keywords, false, None).await
+            commit::handle_commit(language, keywords, false, None).await
         }
     }
 }
